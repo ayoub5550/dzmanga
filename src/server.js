@@ -28,6 +28,26 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// MangaDex (Cloudflare) can silently drop *all* connections from a given VPS
+// IP for a while — e.g. after a burst of requests during catalog rebuilds.
+// The TLS handshake succeeds but no HTTP response ever comes back
+// ("fetch failed" / socket reset). Retrying the same IP does not help in
+// that case. As a last resort we relay the single request through
+// r.jina.ai (a free, keyless read-only fetch proxy) which reaches
+// MangaDex from a different IP. Only used after direct attempts are
+// exhausted — keeps normal traffic going straight to MangaDex.
+async function fetchViaJinaProxy(url) {
+  const proxyUrl = `https://r.jina.ai/${url}`;
+  const res = await fetch(proxyUrl, {
+    headers: { Accept: 'application/json', 'User-Agent': 'dzmanga/1.0' },
+  });
+  if (!res.ok) throw new Error(`jina proxy ${res.status} for ${url}`);
+  const wrapper = await res.json();
+  const content = wrapper?.data?.content;
+  if (!content) throw new Error(`jina proxy: no content for ${url}`);
+  return JSON.parse(content);
+}
+
 async function cachedFetchJson(url, retries = 4) {
   const hit = cache.get(url);
   if (hit && Date.now() - hit.t < CACHE_TTL_MS) return hit.data;
@@ -43,7 +63,16 @@ async function cachedFetchJson(url, retries = 4) {
         await sleep(1500 + attempt * 1500);
         continue;
       }
-      throw networkErr;
+      // Direct connection is exhausted — this VPS IP may be temporarily
+      // blocked at the network level. Try once via the jina.ai relay
+      // before giving up.
+      try {
+        const data = await fetchViaJinaProxy(url);
+        cache.set(url, { t: Date.now(), data });
+        return data;
+      } catch (proxyErr) {
+        throw networkErr;
+      }
     }
     if (res.status === 429 && attempt < retries) {
       // MangaDex rate limit — back off and retry rather than failing the
