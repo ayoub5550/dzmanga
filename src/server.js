@@ -482,6 +482,16 @@ app.get('/img', async (req, res) => {
     // original MangaDex CDN URL. The end-user's own IP isn't blocked, so
     // this recovers the image; it just skips the ISP-friendliness this
     // proxy normally provides.
+    //
+    // IMPORTANT: MangaDex's cover CDN has Referer-based hotlink protection
+    // — a request whose Referer is our own domain gets served a generic
+    // "you can read this at mangadex.org" placeholder instead of the real
+    // cover (confirmed by testing headers directly: identical request with
+    // no Referer returns the real image, with our Referer returns the
+    // placeholder). `Referrer-Policy: no-referrer` on this redirect makes
+    // the browser drop the Referer on the follow-up request it makes to
+    // the redirect target, so the real cover loads.
+    res.set('Referrer-Policy', 'no-referrer');
     res.redirect(302, u);
   }
 });
