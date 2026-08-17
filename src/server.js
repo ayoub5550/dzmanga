@@ -282,11 +282,14 @@ app.get('/api/home', async (req, res) => {
 // count instead of an open-ended "load more" that never visibly finishes.
 const CATALOG_REBUILD_MS = 3 * 60 * 60 * 1000; // MangaDex catalog changes slowly; 3h is plenty fresh
 const RAW_PAGE = 100;
-let fullCatalog = { items: [], builtAt: 0, building: false };
+let fullCatalog = { items: [], builtAt: 0, building: false, lastAttempt: 0 };
+const BUILD_RETRY_COOLDOWN_MS = 60 * 1000; // don't hammer MangaDex again right after a failed build
 
 async function buildFullCatalog() {
   if (fullCatalog.building) return;
+  if (!fullCatalog.items.length && Date.now() - fullCatalog.lastAttempt < BUILD_RETRY_COOLDOWN_MS) return;
   fullCatalog.building = true;
+  fullCatalog.lastAttempt = Date.now();
   console.log('building full catalog index...');
   try {
     let offset = 0;
