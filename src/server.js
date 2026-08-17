@@ -26,14 +26,26 @@ app.use(express.json());
 const cache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-async function cachedFetchJson(url) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function cachedFetchJson(url, retries = 3) {
   const hit = cache.get(url);
   if (hit && Date.now() - hit.t < CACHE_TTL_MS) return hit.data;
-  const res = await fetch(url, { headers: { 'User-Agent': 'dzmanga/1.0' } });
-  if (!res.ok) throw new Error(`MangaDex ${res.status} for ${url}`);
-  const data = await res.json();
-  cache.set(url, { t: Date.now(), data });
-  return data;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { headers: { 'User-Agent': 'dzmanga/1.0' } });
+    if (res.status === 429 && attempt < retries) {
+      // MangaDex rate limit — back off and retry rather than failing the
+      // whole request (this matters a lot for the full-catalog build, which
+      // makes hundreds of requests in a short window).
+      const retryAfter = parseInt(res.headers.get('retry-after'), 10);
+      await sleep((Number.isFinite(retryAfter) ? retryAfter : 2 + attempt * 2) * 1000);
+      continue;
+    }
+    if (!res.ok) throw new Error(`MangaDex ${res.status} for ${url}`);
+    const data = await res.json();
+    cache.set(url, { t: Date.now(), data });
+    return data;
+  }
 }
 
 function coverUrl(mangaId, fileName, size = 256) {
@@ -181,7 +193,7 @@ async function mapWithConcurrency(items, limit, fn) {
 }
 
 async function filterReadable(mangaList, wanted) {
-  const flags = await mapWithConcurrency(mangaList, 10, (m) => hasReadableArabicChapter(m.id));
+  const flags = await mapWithConcurrency(mangaList, 6, (m) => hasReadableArabicChapter(m.id));
   return mangaList.filter((_, i) => flags[i]).slice(0, wanted);
 }
 
@@ -244,33 +256,61 @@ app.get('/api/home', async (req, res) => {
   }
 });
 
-// Full-catalog browse: paginates through *all* MangaDex titles that have a
-// readable Arabic chapter (not just the curated home sections), ordered by
-// followedCount so the most relevant/known titles surface first. Cursor is
-// the raw MangaDex offset (not the count of items we actually returned,
-// since some candidates get filtered out) so the client just echoes back
-// `nextOffset` on the next call.
-const BROWSE_PAGE = 30;
-const BROWSE_MAX_UPSTREAM_PAGES = 6; // safety cap per request so we don't hang forever on a sparse tail
+// Full-catalog index: dzmanga's "الكل" tab is meant to show literally every
+// MangaDex title that has a readable Arabic chapter — measured 2026-08-17 at
+// ~733 out of 978 ar-tagged titles. Checking that live on every page request
+// is too slow (N+1 calls per candidate), so we build the whole filtered list
+// once in the background and cache it, then serve real numbered pages
+// (like MangaDex's own "Titles" browse, which is the org scheme this was
+// modeled on) by slicing the in-memory array — instant + shows a true total
+// count instead of an open-ended "load more" that never visibly finishes.
+const CATALOG_REBUILD_MS = 3 * 60 * 60 * 1000; // MangaDex catalog changes slowly; 3h is plenty fresh
+const RAW_PAGE = 100;
+let fullCatalog = { items: [], builtAt: 0, building: false };
 
-app.get('/api/browse', async (req, res) => {
+async function buildFullCatalog() {
+  if (fullCatalog.building) return;
+  fullCatalog.building = true;
+  console.log('building full catalog index...');
   try {
-    let offset = parseInt(req.query.offset, 10) || 0;
-    const collected = [];
+    let offset = 0;
     let total = Infinity;
-    for (let page = 0; page < BROWSE_MAX_UPSTREAM_PAGES && offset < total && collected.length < 12; page++) {
-      const url = `${MD_BASE}/manga?limit=${BROWSE_PAGE}&offset=${offset}&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=${LANG}`;
+    const items = [];
+    while (offset < total) {
+      const url = `${MD_BASE}/manga?limit=${RAW_PAGE}&offset=${offset}&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=${LANG}`;
       const data = await cachedFetchJson(url);
       total = data.total;
-      const ok = await filterReadable(data.data.map(mapManga), BROWSE_PAGE);
-      collected.push(...ok);
-      offset += BROWSE_PAGE;
+      const mapped = data.data.map(mapManga);
+      const flags = await mapWithConcurrency(mapped, 5, (m) => hasReadableArabicChapter(m.id));
+      mapped.forEach((m, i) => flags[i] && items.push(m));
+      offset += RAW_PAGE;
+      await sleep(600); // spread load across MangaDex pages instead of bursting
     }
-    res.json({ items: collected, nextOffset: offset, done: offset >= total });
+    fullCatalog = { items, builtAt: Date.now(), building: false };
+    console.log(`full catalog index built: ${items.length} readable titles`);
   } catch (e) {
-    console.error(e);
-    res.status(502).json({ error: 'failed to browse MangaDex' });
+    console.error('full catalog build failed:', e.message);
+    fullCatalog.building = false;
   }
+}
+
+app.get('/api/browse', async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const pageSize = 24;
+  if (!fullCatalog.items.length) {
+    // Index not ready yet (first ~30s after a restart) — kick off the build
+    // and tell the client to retry shortly instead of blocking the request.
+    buildFullCatalog();
+    return res.json({ items: [], total: 0, page: 1, totalPages: 0, indexing: true });
+  }
+  const start = (page - 1) * pageSize;
+  const items = fullCatalog.items.slice(start, start + pageSize);
+  res.json({
+    items,
+    total: fullCatalog.items.length,
+    page,
+    totalPages: Math.ceil(fullCatalog.items.length / pageSize),
+  });
 });
 
 app.get('/api/genre/:key', async (req, res) => {
@@ -320,21 +360,28 @@ app.get('/api/manga/:id/chapters', async (req, res) => {
     let offset = 0;
     let all = [];
     for (let i = 0; i < 15; i++) {
-      const url = `${MD_BASE}/manga/${req.params.id}/feed?translatedLanguage[]=${LANG}&order[chapter]=asc&limit=500&offset=${offset}&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
+      const url = `${MD_BASE}/manga/${req.params.id}/feed?translatedLanguage[]=${LANG}&order[chapter]=asc&limit=500&offset=${offset}&includes[]=scanlation_group&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
       const data = await cachedFetchJson(url);
       all = all.concat(data.data);
       offset += 500;
       if (offset >= data.total || data.data.length === 0) break;
     }
+    // Grouped by volume (like MangaDex's own chapter table) so long-running
+    // series don't dump hundreds of flat rows on the reader.
     const chapters = all
       .filter((c) => c.attributes.pages > 0) // drop external-only/licensed chapters we can't render
-      .map((c) => ({
-        id: c.id,
-        chapter: c.attributes.chapter,
-        title: c.attributes.title,
-        pages: c.attributes.pages,
-        publishAt: c.attributes.publishAt,
-      }));
+      .map((c) => {
+        const group = (c.relationships || []).find((r) => r.type === 'scanlation_group');
+        return {
+          id: c.id,
+          chapter: c.attributes.chapter,
+          title: c.attributes.title,
+          pages: c.attributes.pages,
+          publishAt: c.attributes.publishAt,
+          volume: c.attributes.volume,
+          group: group?.attributes?.name || null,
+        };
+      });
     res.json({ chapters });
   } catch (e) {
     console.error(e);
@@ -389,4 +436,9 @@ app.listen(PORT, () => {
       console.log('home cache warmed');
     })
     .catch((e) => console.error('home cache warm-up failed', e));
+  // Full catalog index for the /browse "الكل" tab — slow (~30-60s across
+  // ~978 candidates), so build it once in the background and refresh
+  // periodically rather than per-request.
+  buildFullCatalog();
+  setInterval(buildFullCatalog, CATALOG_REBUILD_MS);
 });

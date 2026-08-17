@@ -130,7 +130,12 @@
     border-radius:12px;padding:13px 15px;font-size:14px;border:1px solid #1f2a22;transition:.15s}
   .chapter-row:hover{border-color:var(--accent2)}
   .chapter-row:active{background:#1c241e}
-  .chapter-row .date{color:var(--muted);font-size:11.5px}
+  .chapter-row .date{color:var(--muted);font-size:11.5px;flex-shrink:0;margin-inline-start:10px}
+  .chapter-row .ch-title{display:block}
+  .chapter-row .ch-group{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+  .volume-group{margin-top:14px}
+  .volume-group:first-child{margin-top:0}
+  .volume-label{font-size:13px;font-weight:800;color:var(--accent);margin:0 0 8px 2px}
 
   /* reader */
   .reader{display:flex;flex-direction:column;align-items:center;background:#000;margin:0 -16px;padding:12px 0 90px}
@@ -149,6 +154,11 @@
     padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;
     transition:.15s}
   .tab.active{background:var(--accent-grad);color:#fff;border-color:transparent}
+
+  .pagination{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:22px 0 8px}
+  .page-btn{min-width:38px;padding:9px 12px}
+  .page-btn.active-page{color:#fff}
+  .page-ellipsis{color:var(--muted);padding:9px 2px;font-size:13px}
 </style>
 </head>
 <body>

@@ -162,6 +162,50 @@ async function renderSearch(q) {
   }
 }
 
+// Chapters come from the API in ascending order; the reader's prev/next
+// logic indexes into that exact array, so we keep each chapter's original
+// index (`idx`) attached no matter how we group/reverse them for display.
+function groupChaptersByVolume(chapters, descending) {
+  const withIdx = chapters.map((c, idx) => ({ ...c, idx }));
+  const ordered = descending ? [...withIdx].reverse() : withIdx;
+  const groups = [];
+  let current = null;
+  for (const c of ordered) {
+    const key = c.volume || 'no-volume';
+    if (!current || current.key !== key) {
+      current = { key, label: c.volume ? `المجلد ${c.volume}` : 'بدون مجلد', items: [] };
+      groups.push(current);
+    }
+    current.items.push(c);
+  }
+  return groups;
+}
+
+function chapterRowHtml(c, mangaId) {
+  return `
+    <a class="chapter-row" href="#/read/${c.id}/${mangaId}/${c.idx}">
+      <span>
+        <span class="ch-title">الفصل ${c.chapter ?? '؟'}${c.title ? ' — ' + escapeHtml(c.title) : ''}</span>
+        ${c.group ? `<span class="ch-group">${escapeHtml(c.group)}</span>` : ''}
+      </span>
+      <span class="date">${c.publishAt ? new Date(c.publishAt).toLocaleDateString('ar') : ''}</span>
+    </a>`;
+}
+
+function chaptersHtml(chapters, mangaId, descending) {
+  if (!chapters.length) return '<div class="empty">لا توجد فصول بالعربية حالياً.</div>';
+  const groups = groupChaptersByVolume(chapters, descending);
+  return groups
+    .map(
+      (g) => `
+    <div class="volume-group">
+      ${g.key !== 'no-volume' || groups.length > 1 ? `<div class="volume-label">${escapeHtml(g.label)}</div>` : ''}
+      <div class="chapters">${g.items.map((c) => chapterRowHtml(c, mangaId)).join('')}</div>
+    </div>`
+    )
+    .join('');
+}
+
 async function renderManga(id) {
   app.innerHTML = loadingHtml();
   try {
@@ -169,7 +213,8 @@ async function renderManga(id) {
       getJson(`/api/manga/${id}`),
       getJson(`/api/manga/${id}/chapters`),
     ]);
-    const cover = manga.cover || 'https://placehold.co/260x380/1c1826/9791ac?text=dzmanga';
+    const cover = manga.cover || 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
+    let descending = true; // newest chapters first by default, like most manga readers
     app.innerHTML = `
       <a class="backlink" href="#/">&rarr; رجوع</a>
       <div class="detail">
@@ -181,15 +226,17 @@ async function renderManga(id) {
           <div class="desc">${escapeHtml(manga.description) || 'لا يوجد وصف.'}</div>
         </div>
       </div>
-      <h2 class="section">الفصول (${chapters.length})</h2>
-      <div class="chapters">
-        ${chapters.length ? chapters.map((c, i) => `
-          <a class="chapter-row" href="#/read/${c.id}/${manga.id}/${i}">
-            <span>الفصل ${c.chapter ?? '؟'}${c.title ? ' — ' + escapeHtml(c.title) : ''}</span>
-            <span class="date">${c.publishAt ? new Date(c.publishAt).toLocaleDateString('ar') : ''}</span>
-          </a>`).join('') : '<div class="empty">لا توجد فصول بالعربية حالياً.</div>'}
-      </div>
+      <h2 class="section">
+        الفصول (${chapters.length})
+        <button class="btn more" id="sortToggle" style="margin-inline-start:auto">تنازلي ⇅</button>
+      </h2>
+      <div id="chapterList">${chaptersHtml(chapters, manga.id, descending)}</div>
     `;
+    document.getElementById('sortToggle')?.addEventListener('click', (e) => {
+      descending = !descending;
+      e.target.textContent = descending ? 'تنازلي ⇅' : 'تصاعدي ⇅';
+      document.getElementById('chapterList').innerHTML = chaptersHtml(chapters, manga.id, descending);
+    });
     window.__chapterCache = window.__chapterCache || {};
     window.__chapterCache[manga.id] = chapters;
   } catch (e) {
@@ -242,6 +289,56 @@ const BROWSE_TABS = [
   { key: 'horror', label: '👻 رعب' },
 ];
 
+function paginationHtml(page, totalPages) {
+  const nums = [];
+  const add = (n) => nums.push(n);
+  const from = Math.max(1, page - 2);
+  const to = Math.min(totalPages, page + 2);
+  if (from > 1) { add(1); if (from > 2) nums.push('…'); }
+  for (let i = from; i <= to; i++) add(i);
+  if (to < totalPages) { if (to < totalPages - 1) nums.push('…'); add(totalPages); }
+  return `
+    <div class="pagination">
+      <button class="btn page-btn" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>← السابق</button>
+      ${nums
+        .map((n) =>
+          n === '…'
+            ? `<span class="page-ellipsis">…</span>`
+            : `<button class="btn page-btn ${n === page ? 'primary active-page' : ''}" data-page="${n}">${n}</button>`
+        )
+        .join('')}
+      <button class="btn page-btn" data-page="${page + 1}" ${page >= totalPages ? 'disabled' : ''}>التالي →</button>
+    </div>
+  `;
+}
+
+async function loadAllPage(body, page) {
+  body.innerHTML = skeletonGrid(24);
+  try {
+    const data = await getJson(`/api/browse?page=${page}`);
+    if (data.indexing) {
+      body.innerHTML = `<div class="loading"><div class="spinner"></div>جارِ فهرسة الكتالوج الكامل (~700+ مانجا)، ثوانٍ معدودة…</div>`;
+      setTimeout(() => loadAllPage(body, page), 3000);
+      return;
+    }
+    body.innerHTML = `
+      <div class="empty" style="text-align:${document.dir === 'rtl' ? 'right' : 'left'};padding:0 2px 14px">
+        عرض ${data.items.length} من أصل <b>${data.total}</b> مانجا عربية متوفرة على MangaDex — صفحة ${data.page} من ${data.totalPages}
+      </div>
+      <div class="grid">${data.items.map(cardHtml).join('')}</div>
+      ${paginationHtml(data.page, data.totalPages)}
+    `;
+    body.querySelectorAll('.page-btn:not([disabled])').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        loadAllPage(body, parseInt(btn.dataset.page, 10));
+        body.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  } catch (e) {
+    body.innerHTML = `<div class="empty">تعذّر التحميل، حاول مجدداً.</div>`;
+  }
+}
+
 async function renderBrowse(activeTab = 'all') {
   const tabsHtml = BROWSE_TABS.map(
     (t) => `<button class="tab ${t.key === activeTab ? 'active' : ''}" data-tab="${t.key}">${t.label}</button>`
@@ -261,39 +358,7 @@ async function renderBrowse(activeTab = 'all') {
   const body = document.getElementById('browseBody');
 
   if (activeTab === 'all') {
-    let offset = 0;
-    let done = false;
-    let loading = false;
-    const seen = new Set();
-
-    async function loadMore(first) {
-      if (loading || done) return;
-      loading = true;
-      try {
-        const data = await getJson(`/api/browse?offset=${offset}`);
-        offset = data.nextOffset;
-        done = data.done;
-        const fresh = data.items.filter((m) => !seen.has(m.id));
-        fresh.forEach((m) => seen.add(m.id));
-        if (first) {
-          body.innerHTML = `<div class="grid" id="browseGrid">${fresh.map(cardHtml).join('')}</div>
-            <div id="browseFooter" style="text-align:center;padding:24px 0"></div>`;
-        } else {
-          document.getElementById('browseGrid')?.insertAdjacentHTML('beforeend', fresh.map(cardHtml).join(''));
-        }
-        const footer = document.getElementById('browseFooter');
-        if (footer) {
-          footer.innerHTML = done
-            ? '<span class="empty">وصلت لنهاية القائمة 🎉</span>'
-            : '<button class="btn primary" id="loadMoreBtn">حمّل المزيد</button>';
-          document.getElementById('loadMoreBtn')?.addEventListener('click', () => loadMore(false));
-        }
-      } catch (e) {
-        body.innerHTML = `<div class="empty">تعذّر التحميل، حاول مجدداً</div>`;
-      }
-      loading = false;
-    }
-    await loadMore(true);
+    await loadAllPage(body, 1);
   } else {
     try {
       const data = await getJson(`/api/genre/${activeTab}`);
