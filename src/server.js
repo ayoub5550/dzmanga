@@ -28,17 +28,33 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function cachedFetchJson(url, retries = 3) {
+async function cachedFetchJson(url, retries = 4) {
   const hit = cache.get(url);
   if (hit && Date.now() - hit.t < CACHE_TTL_MS) return hit.data;
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { headers: { 'User-Agent': 'dzmanga/1.0' } });
+    let res;
+    try {
+      res = await fetch(url, { headers: { 'User-Agent': 'dzmanga/1.0' } });
+    } catch (networkErr) {
+      // Transient network/TLS resets happen, especially right after a
+      // server restart re-opens many connections at once. Retry with
+      // backoff instead of failing the whole request/build.
+      if (attempt < retries) {
+        await sleep(1500 + attempt * 1500);
+        continue;
+      }
+      throw networkErr;
+    }
     if (res.status === 429 && attempt < retries) {
       // MangaDex rate limit — back off and retry rather than failing the
       // whole request (this matters a lot for the full-catalog build, which
       // makes hundreds of requests in a short window).
       const retryAfter = parseInt(res.headers.get('retry-after'), 10);
       await sleep((Number.isFinite(retryAfter) ? retryAfter : 2 + attempt * 2) * 1000);
+      continue;
+    }
+    if (res.status >= 500 && attempt < retries) {
+      await sleep(1500 + attempt * 1500);
       continue;
     }
     if (!res.ok) throw new Error(`MangaDex ${res.status} for ${url}`);
