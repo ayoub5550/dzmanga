@@ -40,7 +40,7 @@ function closeLiveResults() {
 function liveItemHtml(m) {
   const cover = m.cover || 'https://placehold.co/68x96/171f1a/8a9a8f?text=%20';
   return `<a class="live-item" href="#/manga/${m.id}">
-    <img src="${cover}" loading="lazy" />
+    <img src="${cover}" loading="lazy" referrerpolicy="no-referrer" />
     <span class="t">${escapeHtml(m.title)}</span>
   </a>`;
 }
@@ -96,7 +96,7 @@ function skeletonGrid(n = 12) {
 function cardHtml(m) {
   const cover = m.cover || 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
   return `<a class="card" href="#/manga/${m.id}">
-    <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" />
+    <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" referrerpolicy="no-referrer" />
     <div class="title">${escapeHtml(m.title)}</div>
   </a>`;
 }
@@ -246,7 +246,7 @@ async function renderManga(id) {
     app.innerHTML = `
       <a class="backlink" href="#/">&rarr; رجوع</a>
       <div class="detail">
-        <img src="${cover}" alt="${escapeHtml(manga.title)}" />
+        <img src="${cover}" alt="${escapeHtml(manga.title)}" referrerpolicy="no-referrer" />
         <div class="info">
           <h1>${escapeHtml(manga.title)}</h1>
           <div class="meta">${manga.author ? escapeHtml(manga.author) + ' · ' : ''}${manga.status || ''} ${manga.year ? '· ' + manga.year : ''}</div>
@@ -289,7 +289,7 @@ async function renderReader(chapterId, mangaId, idx) {
     app.innerHTML = `
       <a class="backlink" href="#/manga/${mangaId}">&rarr; الفصل ${chapters[i]?.chapter ?? ''}</a>
       <div class="reader">
-        ${pages.map((p) => `<img src="${p}" loading="lazy" />`).join('')}
+        ${pages.map((p) => `<img src="${p}" loading="lazy" referrerpolicy="no-referrer" />`).join('')}
       </div>
       <div class="reader-bar">
         <button class="btn primary" ${next ? '' : 'disabled'} onclick="location.hash='#/read/${next?.id}/${mangaId}/${i + 1}'">التالي &larr;</button>
