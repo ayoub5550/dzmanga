@@ -181,53 +181,82 @@ async function renderReader(chapterId, mangaId, idx) {
   }
 }
 
-async function renderBrowse() {
-  app.innerHTML = `<h2 class="section">📚 تصفّح كل المانجا العربية</h2>${skeletonGrid(18)}`;
-  let offset = 0;
-  let done = false;
-  let loading = false;
-  const seen = new Set();
+// Tabs for the browse page: "الكل" (paginated across the whole MangaDex ar
+// catalog) plus one tab per curated genre (fixed-size list, no pagination
+// needed). Keep this list of keys/labels/emoji in sync with GENRES in
+// src/server.js if genres are added/removed there.
+const BROWSE_TABS = [
+  { key: 'all', label: '📚 الكل' },
+  { key: 'action', label: '⚔️ أكشن' },
+  { key: 'romance', label: '💗 رومانسي' },
+  { key: 'isekai', label: '🌌 إيسيكاي' },
+  { key: 'fantasy', label: '🐉 خيال' },
+  { key: 'comedy', label: '😂 كوميدي' },
+  { key: 'horror', label: '👻 رعب' },
+];
 
-  function shell(itemsHtml) {
-    return `
-      <h2 class="section">📚 تصفّح كل المانجا العربية</h2>
-      <div class="grid" id="browseGrid">${itemsHtml}</div>
-      <div id="browseFooter" style="text-align:center;padding:24px 0">
-        ${done ? '<span class="empty">وصلت لنهاية القائمة 🎉</span>' : '<button class="btn primary" id="loadMoreBtn">حمّل المزيد</button>'}
-      </div>
-    `;
-  }
+async function renderBrowse(activeTab = 'all') {
+  const tabsHtml = BROWSE_TABS.map(
+    (t) => `<button class="tab ${t.key === activeTab ? 'active' : ''}" data-tab="${t.key}">${t.label}</button>`
+  ).join('');
 
-  async function loadMore() {
-    if (loading || done) return;
-    loading = true;
-    const btn = document.getElementById('loadMoreBtn');
-    if (btn) btn.textContent = 'جارِ التحميل…';
-    try {
-      const data = await getJson(`/api/browse?offset=${offset}`);
-      offset = data.nextOffset;
-      done = data.done;
-      const fresh = data.items.filter((m) => !seen.has(m.id));
-      fresh.forEach((m) => seen.add(m.id));
-      const grid = document.getElementById('browseGrid');
-      if (grid) grid.insertAdjacentHTML('beforeend', fresh.map(cardHtml).join(''));
-      const footer = document.getElementById('browseFooter');
-      if (footer) {
-        footer.innerHTML = done
-          ? '<span class="empty">وصلت لنهاية القائمة 🎉</span>'
-          : '<button class="btn primary" id="loadMoreBtn">حمّل المزيد</button>';
-        document.getElementById('loadMoreBtn')?.addEventListener('click', loadMore);
+  app.innerHTML = `
+    <div class="tabs">${tabsHtml}</div>
+    <div id="browseBody">${skeletonGrid(18)}</div>
+  `;
+
+  document.querySelectorAll('.tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.tab !== activeTab) renderBrowse(btn.dataset.tab);
+    });
+  });
+
+  const body = document.getElementById('browseBody');
+
+  if (activeTab === 'all') {
+    let offset = 0;
+    let done = false;
+    let loading = false;
+    const seen = new Set();
+
+    async function loadMore(first) {
+      if (loading || done) return;
+      loading = true;
+      try {
+        const data = await getJson(`/api/browse?offset=${offset}`);
+        offset = data.nextOffset;
+        done = data.done;
+        const fresh = data.items.filter((m) => !seen.has(m.id));
+        fresh.forEach((m) => seen.add(m.id));
+        if (first) {
+          body.innerHTML = `<div class="grid" id="browseGrid">${fresh.map(cardHtml).join('')}</div>
+            <div id="browseFooter" style="text-align:center;padding:24px 0"></div>`;
+        } else {
+          document.getElementById('browseGrid')?.insertAdjacentHTML('beforeend', fresh.map(cardHtml).join(''));
+        }
+        const footer = document.getElementById('browseFooter');
+        if (footer) {
+          footer.innerHTML = done
+            ? '<span class="empty">وصلت لنهاية القائمة 🎉</span>'
+            : '<button class="btn primary" id="loadMoreBtn">حمّل المزيد</button>';
+          document.getElementById('loadMoreBtn')?.addEventListener('click', () => loadMore(false));
+        }
+      } catch (e) {
+        body.innerHTML = `<div class="empty">تعذّر التحميل، حاول مجدداً</div>`;
       }
-    } catch (e) {
-      const footer = document.getElementById('browseFooter');
-      if (footer) footer.innerHTML = '<span class="empty">تعذّر التحميل، حاول مجدداً</span>';
+      loading = false;
     }
-    loading = false;
+    await loadMore(true);
+  } else {
+    try {
+      const data = await getJson(`/api/genre/${activeTab}`);
+      body.innerHTML = data.items.length
+        ? `<div class="grid">${data.items.map(cardHtml).join('')}</div>`
+        : `<div class="empty">لا توجد نتائج بالعربية في هذا القسم حالياً.</div>`;
+    } catch (e) {
+      body.innerHTML = `<div class="empty">تعذّر التحميل، حاول مجدداً.</div>`;
+    }
   }
-
-  app.innerHTML = shell('');
-  document.getElementById('loadMoreBtn')?.addEventListener('click', loadMore);
-  await loadMore();
 }
 
 function router() {

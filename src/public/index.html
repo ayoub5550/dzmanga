@@ -4,7 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>dzmanga — مانجا عربي</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0a0a0f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -33,6 +38,7 @@
   .logo-badge{width:34px;height:34px;border-radius:10px;flex-shrink:0;background:var(--accent-grad);
     display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(255,61,104,.35)}
   .logo-badge svg{width:19px;height:19px}
+  .logo-badge img{width:100%;height:100%;object-fit:cover;border-radius:10px}
   .logo-word{font-weight:800;font-size:21px;letter-spacing:-.02em;line-height:1;
     display:flex;flex-direction:column;align-items:flex-start}
   .logo-word .top{display:flex}
@@ -118,14 +124,19 @@
   .btn.primary{background:var(--accent-grad);border:none;font-weight:700;box-shadow:0 6px 18px rgba(255,61,104,.3)}
   .btn:disabled{opacity:.3}
   .backlink{display:inline-block;margin:14px 0 10px;color:var(--muted);font-size:13px;font-weight:600}
+
+  /* browse tabs */
+  .tabs{display:flex;gap:8px;overflow-x:auto;padding:16px 0 4px;margin-bottom:4px}
+  .tab{flex:0 0 auto;background:var(--card);border:1px solid #241f30;color:var(--muted);
+    padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;
+    transition:.15s}
+  .tab.active{background:var(--accent-grad);color:#fff;border-color:transparent}
 </style>
 </head>
 <body>
 <header>
   <a href="#/" class="logo" dir="ltr">
-    <span class="logo-badge">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z" fill="#fff"/></svg>
-    </span>
+    <span class="logo-badge"><img src="/icon-192.png" alt="dzmanga" /></span>
     <span class="logo-word"><span class="top"><span class="dz">dz</span><span class="manga">manga</span></span><span class="bar"></span></span>
   </a>
   <form id="searchForm">
