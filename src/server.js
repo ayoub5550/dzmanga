@@ -64,19 +64,70 @@ function mapManga(m) {
 // `translatedLanguage[]=ar` on the chapter feed. Do not silently widen this
 // to other languages without checking with the product owner — the whole
 // app's positioning is "Arabic manga reader".
+//
+// IMPORTANT gotcha discovered 2026-08-17: MangaDex's `availableTranslatedLanguage`
+// facet is unreliable for less-common languages like `ar` — it returns manga
+// that historically had an Arabic chapter registered even if it has since been
+// taken down (common for officially-licensed titles, e.g. Solo Leveling: the
+// filter includes it, but its `ar` feed has `total: 0`, and MangaDex serves a
+// "read at mangadex.org" placeholder as the cover for such titles). So for
+// `/api/home` we over-fetch candidates and verify each one actually has a
+// readable (pages > 0) Arabic chapter via `hasReadableArabicChapter()` before
+// including it — do not remove this check or "popular" will show broken entries.
+
+const readableCache = new Map(); // mangaId -> { t, ok }
+const READABLE_TTL_MS = 30 * 60 * 1000;
+
+async function hasReadableArabicChapter(mangaId) {
+  const hit = readableCache.get(mangaId);
+  if (hit && Date.now() - hit.t < READABLE_TTL_MS) return hit.ok;
+  let ok = false;
+  try {
+    const url = `${MD_BASE}/manga/${mangaId}/feed?translatedLanguage[]=${LANG}&limit=20&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
+    const data = await cachedFetchJson(url);
+    ok = (data.data || []).some((c) => c.attributes.pages > 0);
+  } catch (e) {
+    ok = false;
+  }
+  readableCache.set(mangaId, { t: Date.now(), ok });
+  return ok;
+}
+
+// Runs `fn` over `items` with at most `limit` in flight at once (keeps us
+// well under MangaDex's informal rate-limit guidance).
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+async function filterReadable(mangaList, wanted) {
+  const flags = await mapWithConcurrency(mangaList, 5, (m) => hasReadableArabicChapter(m.id));
+  return mangaList.filter((_, i) => flags[i]).slice(0, wanted);
+}
 
 app.get('/api/home', async (req, res) => {
   try {
-    const popularUrl = `${MD_BASE}/manga?limit=18&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
-    const latestUrl = `${MD_BASE}/manga?limit=18&includes[]=cover_art&includes[]=author&order[latestUploadedChapter]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
+    const WANTED = 18;
+    const CANDIDATES = 45; // over-fetch since some will fail the readable-chapter check
+    const popularUrl = `${MD_BASE}/manga?limit=${CANDIDATES}&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
+    const latestUrl = `${MD_BASE}/manga?limit=${CANDIDATES}&includes[]=cover_art&includes[]=author&order[latestUploadedChapter]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
     const [popular, latest] = await Promise.all([
       cachedFetchJson(popularUrl),
       cachedFetchJson(latestUrl),
     ]);
-    res.json({
-      popular: popular.data.map(mapManga),
-      latest: latest.data.map(mapManga),
-    });
+    const [popularOk, latestOk] = await Promise.all([
+      filterReadable(popular.data.map(mapManga), WANTED),
+      filterReadable(latest.data.map(mapManga), WANTED),
+    ]);
+    res.json({ popular: popularOk, latest: latestOk });
   } catch (e) {
     console.error(e);
     res.status(502).json({ error: 'failed to reach MangaDex' });
@@ -89,7 +140,8 @@ app.get('/api/search', async (req, res) => {
   try {
     const url = `${MD_BASE}/manga?title=${encodeURIComponent(q)}&limit=24&includes[]=cover_art&includes[]=author&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=${LANG}`;
     const data = await cachedFetchJson(url);
-    res.json({ results: data.data.map(mapManga) });
+    const results = await filterReadable(data.data.map(mapManga), 24);
+    res.json({ results });
   } catch (e) {
     console.error(e);
     res.status(502).json({ error: 'search failed' });
