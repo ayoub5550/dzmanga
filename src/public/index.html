@@ -80,8 +80,9 @@
   .hero-slide .fade{position:absolute;inset:0;background:linear-gradient(0deg, rgba(10,10,15,.97) 5%, rgba(10,10,15,.35) 55%, rgba(10,10,15,.05) 100%),
     linear-gradient(90deg, rgba(10,10,15,.6), transparent 60%)}
   .hero-content{position:relative;z-index:2;padding:22px;max-width:75%}
-  .hero-badge{display:inline-block;background:var(--accent-grad);font-size:11.5px;font-weight:700;
-    padding:4px 12px;border-radius:999px;margin-bottom:10px;letter-spacing:.02em}
+  .hero-badge{display:inline-flex;align-items:center;gap:5px;background:var(--accent-grad);
+    color:#0a0f0c;font-size:11.5px;font-weight:700;padding:4px 12px;border-radius:999px;
+    margin-bottom:10px;letter-spacing:.02em}
   .hero-title{font-size:clamp(20px,4.5vw,30px);font-weight:800;margin:0 0 8px;line-height:1.25;
     text-shadow:0 2px 12px rgba(0,0,0,.6)}
   .hero-cta{display:inline-flex;align-items:center;gap:6px;background:var(--accent-grad);color:#fff;
@@ -91,9 +92,15 @@
   .hero-dots span.active{background:#fff;width:18px;border-radius:4px}
 
   h2.section{font-size:16px;margin:26px 2px 12px;color:var(--text);font-weight:800;
-    display:flex;align-items:center;gap:8px}
-  h2.section .icon{filter:drop-shadow(0 0 6px rgba(143,232,189,.5))}
+    display:flex;align-items:center;gap:9px}
   h2.section .more{margin-inline-start:auto;font-size:12px;color:var(--muted);font-weight:600}
+
+  .micon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+    width:19px;height:19px;color:var(--accent)}
+  .micon svg{width:100%;height:100%;display:block}
+  h2.section .micon{width:20px;height:20px;filter:drop-shadow(0 0 6px rgba(143,232,189,.45))}
+  .hero-badge .micon{width:13px;height:13px;color:#0a0f0c}
+  .tab .micon{width:15px;height:15px;margin-inline-end:6px;color:inherit;opacity:.85}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:14px}
   .row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
@@ -150,9 +157,10 @@
 
   /* browse tabs */
   .tabs{display:flex;gap:8px;overflow-x:auto;padding:16px 0 4px;margin-bottom:4px}
-  .tab{flex:0 0 auto;background:var(--card);border:1px solid #1f2a22;color:var(--muted);
+  .tab{flex:0 0 auto;display:inline-flex;align-items:center;background:var(--card);border:1px solid #1f2a22;color:var(--muted);
     padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;
     transition:.15s}
+  .tab.active .micon{opacity:1}
   .tab.active{background:var(--accent-grad);color:#fff;border-color:transparent}
 
   .pagination{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:22px 0 8px}

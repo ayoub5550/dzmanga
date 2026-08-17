@@ -1,3 +1,23 @@
+// Lightweight inline-SVG line icons (currentColor stroke) — used instead of
+// emoji everywhere in the UI for a cleaner, on-brand look. Keep additions
+// minimal/consistent: 20x20 viewBox, stroke-width 1.7, round caps/joins.
+const ICONS = {
+  fire: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1.8c.3 2.4-1 3.6-2.2 4.9-1.3 1.4-2.3 3-2.3 5A4.5 4.5 0 0 0 10 16.2a4.5 4.5 0 0 0 4.5-4.5c0-1.1-.3-1.9-.8-2.7-.2.9-.8 1.6-1.5 1.9.3-2.3-.7-3.6-1.6-4.8-.5-.7-.8-1.5-.6-2.3Z"/></svg>',
+  sparkle: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.6 4.6l2 2M13.4 13.4l2 2M15.4 4.6l-2 2M6.6 13.4l-2 2"/><circle cx="10" cy="10" r="2.4"/></svg>',
+  sword: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16 14 6M12 4l4 0 0 4-2 2-4-4 2-2Z"/><path d="M4 16l-1.2 1.2M7 13l2 2"/></svg>',
+  heart: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16.5S3 12.4 3 7.6A3.6 3.6 0 0 1 10 6a3.6 3.6 0 0 1 7 1.6c0 4.8-7 8.9-7 8.9Z"/></svg>',
+  portal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><ellipse cx="10" cy="10" rx="7" ry="3.2"/><ellipse cx="10" cy="10" rx="3.2" ry="7"/></svg>',
+  wand: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 13 7"/><path d="M15 2l.7 1.8L17.5 4.5 15.7 5.2 15 7l-.7-1.8L12.5 4.5l1.8-.7L15 2Z"/><path d="M5.5 12.5l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5.5-1.3Z"/></svg>',
+  mask: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6c2-1.5 4-2 7-2s5 .5 7 2c0 6-3 10.5-7 10.5S3 12 3 6Z"/><path d="M7 9c.4.6 1 .9 1.7.9M13 9c-.4.6-1 .9-1.7.9M7.5 12.5c1 .8 4 .8 5 0"/></svg>',
+  ghost: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V9a6 6 0 0 1 12 0v8l-2-1.6L12 17l-2-1.6L8 17l-2-1.6L4 17Z"/><circle cx="7.8" cy="8.6" r=".4" fill="currentColor" stroke="none"/><circle cx="12.2" cy="8.6" r=".4" fill="currentColor" stroke="none"/></svg>',
+  grid: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2.5" y="2.5" width="6" height="6" rx="1.2"/><rect x="11.5" y="2.5" width="6" height="6" rx="1.2"/><rect x="2.5" y="11.5" width="6" height="6" rx="1.2"/><rect x="11.5" y="11.5" width="6" height="6" rx="1.2"/></svg>',
+  book: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5c1.6-.9 3.4-1 5.5-.3v11.6c-2.1-.7-3.9-.6-5.5.3v-11.6ZM17 4.5c-1.6-.9-3.4-1-5.5-.3v11.6c2.1-.7 3.9-.6 5.5.3v-11.6Z"/></svg>',
+};
+
+function icon(name, cls = '') {
+  return `<span class="micon ${cls}" aria-hidden="true">${ICONS[name] || ''}</span>`;
+}
+
 const app = document.getElementById('app');
 const searchForm = document.getElementById('searchForm');
 const searchInput = document.getElementById('searchInput');
@@ -113,7 +133,7 @@ function heroHtml(hero) {
       <div class="bg" style="background-image:url('${m.cover}')"></div>
       <div class="fade"></div>
       <div class="hero-content">
-        <span class="hero-badge">🔥 الأكثر شعبية</span>
+        <span class="hero-badge">${icon('fire')} الأكثر شعبية</span>
         <div class="hero-title">${escapeHtml(m.title)}</div>
         <span class="hero-cta">اقرأ الآن ←</span>
       </div>
@@ -127,15 +147,15 @@ function heroHtml(hero) {
 async function renderHome() {
   app.innerHTML = `
     <div class="hero skeleton" style="height:280px;margin:18px 0 8px"></div>
-    <h2 class="section">🆕 آخر التحديثات</h2>${skeletonGrid(6)}
+    <h2 class="section">${icon('sparkle')} آخر التحديثات</h2>${skeletonGrid(6)}
   `;
   try {
     const { hero, popular, latest, genres } = await getJson('/api/home');
     let html = heroHtml(hero);
-    html += `<h2 class="section">🆕 آخر التحديثات</h2>${rowHtml(latest)}`;
-    html += `<h2 class="section">🔥 الأكثر شعبية</h2>${rowHtml(popular)}`;
+    html += `<h2 class="section">${icon('sparkle')} آخر التحديثات</h2>${rowHtml(latest)}`;
+    html += `<h2 class="section">${icon('fire')} الأكثر شعبية</h2>${rowHtml(popular)}`;
     for (const g of genres || []) {
-      html += `<h2 class="section">${genreEmoji(g.key)} ${escapeHtml(g.label)}</h2>${rowHtml(g.items)}`;
+      html += `<h2 class="section">${icon(genreIconName(g.key))} ${escapeHtml(g.label)}</h2>${rowHtml(g.items)}`;
     }
     app.innerHTML = html;
     startHeroRotation();
@@ -144,8 +164,8 @@ async function renderHome() {
   }
 }
 
-function genreEmoji(key) {
-  return { action: '⚔️', romance: '💗', isekai: '🌌', fantasy: '🐉', comedy: '😂', horror: '👻' }[key] || '📚';
+function genreIconName(key) {
+  return { action: 'sword', romance: 'heart', isekai: 'portal', fantasy: 'wand', comedy: 'mask', horror: 'ghost' }[key] || 'book';
 }
 
 async function renderSearch(q) {
@@ -277,16 +297,16 @@ async function renderReader(chapterId, mangaId, idx) {
 
 // Tabs for the browse page: "الكل" (paginated across the whole MangaDex ar
 // catalog) plus one tab per curated genre (fixed-size list, no pagination
-// needed). Keep this list of keys/labels/emoji in sync with GENRES in
+// needed). Keep this list of keys/labels/icons in sync with GENRES in
 // src/server.js if genres are added/removed there.
 const BROWSE_TABS = [
-  { key: 'all', label: '📚 الكل' },
-  { key: 'action', label: '⚔️ أكشن' },
-  { key: 'romance', label: '💗 رومانسي' },
-  { key: 'isekai', label: '🌌 إيسيكاي' },
-  { key: 'fantasy', label: '🐉 خيال' },
-  { key: 'comedy', label: '😂 كوميدي' },
-  { key: 'horror', label: '👻 رعب' },
+  { key: 'all', label: 'الكل', icon: 'grid' },
+  { key: 'action', label: 'أكشن', icon: 'sword' },
+  { key: 'romance', label: 'رومانسي', icon: 'heart' },
+  { key: 'isekai', label: 'إيسيكاي', icon: 'portal' },
+  { key: 'fantasy', label: 'خيال', icon: 'wand' },
+  { key: 'comedy', label: 'كوميدي', icon: 'mask' },
+  { key: 'horror', label: 'رعب', icon: 'ghost' },
 ];
 
 function paginationHtml(page, totalPages) {
@@ -341,7 +361,7 @@ async function loadAllPage(body, page) {
 
 async function renderBrowse(activeTab = 'all') {
   const tabsHtml = BROWSE_TABS.map(
-    (t) => `<button class="tab ${t.key === activeTab ? 'active' : ''}" data-tab="${t.key}">${t.label}</button>`
+    (t) => `<button class="tab ${t.key === activeTab ? 'active' : ''}" data-tab="${t.key}">${icon(t.icon)}${t.label}</button>`
   ).join('');
 
   app.innerHTML = `
