@@ -26,7 +26,12 @@ async function cachedFetchJson(url) {
 
 function coverUrl(mangaId, fileName, size = 256) {
   if (!fileName) return null;
-  return `${UPLOADS_BASE}/covers/${mangaId}/${fileName}.${size}.jpg`;
+  const real = `${UPLOADS_BASE}/covers/${mangaId}/${fileName}.${size}.jpg`;
+  // Route through our own /img proxy: some ISPs (e.g. in Algeria) have slow/
+  // flaky direct routes to MangaDex's CDN, so fetching from our VPS (usually
+  // better connected) and letting the browser cache our response is both
+  // faster and more reliable than a direct cross-origin <img src>.
+  return `/img?u=${encodeURIComponent(real)}`;
 }
 
 function pickTitle(attrs) {
@@ -109,25 +114,50 @@ async function mapWithConcurrency(items, limit, fn) {
 }
 
 async function filterReadable(mangaList, wanted) {
-  const flags = await mapWithConcurrency(mangaList, 5, (m) => hasReadableArabicChapter(m.id));
+  const flags = await mapWithConcurrency(mangaList, 10, (m) => hasReadableArabicChapter(m.id));
   return mangaList.filter((_, i) => flags[i]).slice(0, wanted);
+}
+
+// /api/home is the slowest endpoint (it has to verify ~2x18 candidate manga
+// against MangaDex before it can answer), so its result is cached server-side
+// and refreshed in the background — users almost always get an instant
+// response from cache instead of paying the verification cost per request.
+const HOME_CACHE_TTL_MS = 15 * 60 * 1000;
+let homeCache = { data: null, t: 0, inflight: null };
+
+async function buildHomePayload() {
+  const WANTED = 18;
+  const CANDIDATES = 30; // over-fetch since some will fail the readable-chapter check
+  const popularUrl = `${MD_BASE}/manga?limit=${CANDIDATES}&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
+  const latestUrl = `${MD_BASE}/manga?limit=${CANDIDATES}&includes[]=cover_art&includes[]=author&order[latestUploadedChapter]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
+  const [popular, latest] = await Promise.all([
+    cachedFetchJson(popularUrl),
+    cachedFetchJson(latestUrl),
+  ]);
+  const [popularOk, latestOk] = await Promise.all([
+    filterReadable(popular.data.map(mapManga), WANTED),
+    filterReadable(latest.data.map(mapManga), WANTED),
+  ]);
+  return { popular: popularOk, latest: latestOk };
 }
 
 app.get('/api/home', async (req, res) => {
   try {
-    const WANTED = 18;
-    const CANDIDATES = 45; // over-fetch since some will fail the readable-chapter check
-    const popularUrl = `${MD_BASE}/manga?limit=${CANDIDATES}&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
-    const latestUrl = `${MD_BASE}/manga?limit=${CANDIDATES}&includes[]=cover_art&includes[]=author&order[latestUploadedChapter]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
-    const [popular, latest] = await Promise.all([
-      cachedFetchJson(popularUrl),
-      cachedFetchJson(latestUrl),
-    ]);
-    const [popularOk, latestOk] = await Promise.all([
-      filterReadable(popular.data.map(mapManga), WANTED),
-      filterReadable(latest.data.map(mapManga), WANTED),
-    ]);
-    res.json({ popular: popularOk, latest: latestOk });
+    const fresh = homeCache.data && Date.now() - homeCache.t < HOME_CACHE_TTL_MS;
+    if (fresh) return res.json(homeCache.data);
+    if (!homeCache.inflight) {
+      homeCache.inflight = buildHomePayload()
+        .then((data) => {
+          homeCache = { data, t: Date.now(), inflight: null };
+          return data;
+        })
+        .catch((e) => {
+          homeCache.inflight = null;
+          throw e;
+        });
+    }
+    const data = await homeCache.inflight;
+    res.json(data);
   } catch (e) {
     console.error(e);
     res.status(502).json({ error: 'failed to reach MangaDex' });
@@ -225,4 +255,12 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`dzmanga listening on :${PORT}`);
+  // Warm the home cache immediately so the first real visitor isn't the one
+  // who pays for the slow candidate-verification pass.
+  buildHomePayload()
+    .then((data) => {
+      homeCache = { data, t: Date.now(), inflight: null };
+      console.log('home cache warmed');
+    })
+    .catch((e) => console.error('home cache warm-up failed', e));
 });
