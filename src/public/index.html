@@ -46,7 +46,17 @@
   .logo-word .dz{color:var(--text)}
   .logo-word .manga{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
   .logo-word .bar{width:26px;height:3px;border-radius:2px;background:var(--accent-grad);margin-top:3px}
-  header form{flex:1;display:flex;min-width:0}
+  header form{flex:1;display:flex;min-width:0;position:relative}
+  .live-results{position:absolute;top:calc(100% + 8px);right:0;left:0;background:var(--card);
+    border:1px solid #25322a;border-radius:14px;max-height:70vh;overflow-y:auto;z-index:30;
+    box-shadow:0 16px 40px rgba(0,0,0,.5);display:none}
+  .live-results.open{display:block}
+  .live-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #1f2a22}
+  .live-item:last-child{border-bottom:none}
+  .live-item:hover{background:#1c241e}
+  .live-item img{width:34px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;background:#1f2a22}
+  .live-item .t{font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .live-empty{padding:14px;text-align:center;color:var(--muted);font-size:12.5px}
   header input{flex:1;min-width:0;width:100%;background:var(--card);border:1px solid #25322a;color:var(--text);
     padding:11px 14px;border-radius:999px;font-size:14px;outline:none;text-align:right;
     font-family:inherit; transition:border-color .2s, box-shadow .2s}
@@ -147,8 +157,9 @@
     <span class="logo-badge"><img src="/icon-192.png" alt="dzmanga" /></span>
     <span class="logo-word"><span class="top"><span class="dz">DZ</span><span class="manga">MANGA</span></span><span class="bar"></span></span>
   </a>
-  <form id="searchForm">
+  <form id="searchForm" autocomplete="off">
     <input id="searchInput" type="search" placeholder="ابحث عن مانجا…" />
+    <div id="liveResults" class="live-results"></div>
   </form>
   <a href="#/browse" class="btn browse-link" style="white-space:nowrap">تصفّح الكل</a>
 </header>

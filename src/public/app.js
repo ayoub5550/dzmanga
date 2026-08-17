@@ -1,12 +1,59 @@
 const app = document.getElementById('app');
 const searchForm = document.getElementById('searchForm');
 const searchInput = document.getElementById('searchInput');
+const liveResults = document.getElementById('liveResults');
 
 searchForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const q = searchInput.value.trim();
-  if (q) location.hash = `#/search/${encodeURIComponent(q)}`;
+  if (q) {
+    closeLiveResults();
+    location.hash = `#/search/${encodeURIComponent(q)}`;
+  }
 });
+
+function closeLiveResults() {
+  liveResults.classList.remove('open');
+  liveResults.innerHTML = '';
+}
+
+function liveItemHtml(m) {
+  const cover = m.cover || 'https://placehold.co/68x96/171f1a/8a9a8f?text=%20';
+  return `<a class="live-item" href="#/manga/${m.id}">
+    <img src="${cover}" loading="lazy" />
+    <span class="t">${escapeHtml(m.title)}</span>
+  </a>`;
+}
+
+let liveSearchTimer = null;
+let liveSearchSeq = 0;
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim();
+  clearTimeout(liveSearchTimer);
+  if (q.length < 2) {
+    closeLiveResults();
+    return;
+  }
+  const seq = ++liveSearchSeq;
+  liveSearchTimer = setTimeout(async () => {
+    try {
+      const { results } = await getJson(`/api/search?q=${encodeURIComponent(q)}`);
+      if (seq !== liveSearchSeq) return; // a newer keystroke already superseded this request
+      liveResults.innerHTML = results.length
+        ? results.slice(0, 8).map(liveItemHtml).join('')
+        : '<div class="live-empty">لا توجد نتائج بالعربية.</div>';
+      liveResults.classList.add('open');
+    } catch (e) {
+      /* silently ignore — the user can still press Enter for the full search page */
+    }
+  }, 350);
+});
+
+document.addEventListener('click', (e) => {
+  if (!searchForm.contains(e.target)) closeLiveResults();
+});
+liveResults.addEventListener('click', () => closeLiveResults());
+window.addEventListener('hashchange', closeLiveResults);
 
 function loadingHtml() {
   return `<div class="loading"><div class="spinner"></div>جارِ التحميل…</div>`;

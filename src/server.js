@@ -66,12 +66,67 @@ function mapManga(m) {
     id: m.id,
     title: pickTitle(attrs),
     description: desc,
+    descriptionIsArabic: Boolean(attrs.description?.ar),
     status: attrs.status,
     year: attrs.year,
     tags: (attrs.tags || []).map((t) => t.attributes?.name?.en).filter(Boolean),
     cover: coverUrl(m.id, coverRel?.attributes?.fileName),
     author: authorRel?.attributes?.name || null,
   };
+}
+
+// dzmanga positions itself as a fully-Arabic reader, but MangaDex only has
+// Arabic *descriptions* for a minority of titles (most only have an English
+// synopsis even when their chapters are translated to Arabic). We machine-
+// translate the English synopsis via MyMemory's free API (no key, but a
+// hard 500-char-per-request limit and a modest daily quota) as a fallback —
+// this is a translation, not editorial content, so quality is "good enough
+// to understand the premise", not publication-grade. Only called for the
+// single manga a user actually opens (never for list/browse endpoints),
+// and cached indefinitely per manga id to stay within the free quota.
+const translationCache = new Map(); // mangaId -> arabic text
+
+function splitIntoChunks(text, maxLen = 480) {
+  const sentences = text.split(/(?<=[.!?\n])\s+/);
+  const chunks = [];
+  let cur = '';
+  for (const s of sentences) {
+    if ((cur + ' ' + s).trim().length > maxLen) {
+      if (cur) chunks.push(cur.trim());
+      cur = s.length > maxLen ? s.slice(0, maxLen) : s;
+    } else {
+      cur = (cur ? cur + ' ' : '') + s;
+    }
+  }
+  if (cur) chunks.push(cur.trim());
+  return chunks;
+}
+
+async function translateChunk(text) {
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ar`;
+  const res = await fetch(url, { headers: { 'User-Agent': 'dzmanga/1.0' } });
+  if (!res.ok) throw new Error(`translate ${res.status}`);
+  const data = await res.json();
+  if (data.responseStatus && data.responseStatus !== 200) throw new Error('translate quota/error');
+  return data.responseData?.translatedText || text;
+}
+
+async function translateDescriptionToArabic(mangaId, englishText) {
+  if (!englishText) return englishText;
+  if (translationCache.has(mangaId)) return translationCache.get(mangaId);
+  try {
+    const chunks = splitIntoChunks(englishText);
+    const translated = [];
+    for (const chunk of chunks) {
+      translated.push(await translateChunk(chunk));
+    }
+    const full = translated.join(' ');
+    translationCache.set(mangaId, full);
+    return full;
+  } catch (e) {
+    console.error('translation failed, falling back to English:', e.message);
+    return englishText; // graceful fallback — never break the page over a translation hiccup
+  }
 }
 
 // ---- API routes ----
@@ -248,7 +303,12 @@ app.get('/api/manga/:id', async (req, res) => {
   try {
     const url = `${MD_BASE}/manga/${req.params.id}?includes[]=cover_art&includes[]=author`;
     const data = await cachedFetchJson(url);
-    res.json(mapManga(data.data));
+    const manga = mapManga(data.data);
+    if (!manga.descriptionIsArabic && manga.description) {
+      manga.description = await translateDescriptionToArabic(manga.id, manga.description);
+    }
+    delete manga.descriptionIsArabic;
+    res.json(manga);
   } catch (e) {
     console.error(e);
     res.status(502).json({ error: 'failed to load manga' });
