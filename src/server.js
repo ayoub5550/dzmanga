@@ -51,16 +51,19 @@ async function fetchViaJinaProxy(url) {
 async function cachedFetchJson(url, retries = 4) {
   const hit = cache.get(url);
   if (hit && Date.now() - hit.t < CACHE_TTL_MS) return hit.data;
+  // Network-level failures (full IP block) don't get better with more
+  // retries against the same IP — only one quick retry before falling back
+  // to the jina proxy, so a blocked-IP request resolves in ~2-5s instead of
+  // ~20s of pointless backoff. 429/5xx (handled below) keep the full
+  // `retries` budget since those genuinely can clear with a short wait.
+  const NETWORK_RETRY_LIMIT = 1;
   for (let attempt = 0; ; attempt++) {
     let res;
     try {
       res = await fetch(url, { headers: { 'User-Agent': 'dzmanga/1.0' } });
     } catch (networkErr) {
-      // Transient network/TLS resets happen, especially right after a
-      // server restart re-opens many connections at once. Retry with
-      // backoff instead of failing the whole request/build.
-      if (attempt < retries) {
-        await sleep(1500 + attempt * 1500);
+      if (attempt < NETWORK_RETRY_LIMIT) {
+        await sleep(1000);
         continue;
       }
       // Direct connection is exhausted — this VPS IP may be temporarily
