@@ -7,6 +7,18 @@ const MD_BASE = 'https://api.mangadex.org';
 const UPLOADS_BASE = 'https://uploads.mangadex.org';
 const LANG = 'ar'; // dzmanga is an Arabic-first reader: only Arabic scanlations are shown
 
+// Curated genre rows shown on the homepage, beyond "popular"/"latest".
+// MangaDex tag UUIDs (from GET /manga/tag) — do not rename keys without also
+// updating src/public/app.js, which reads GENRES to build the section list.
+const GENRES = [
+  { key: 'action', label: 'أكشن', tagId: '391b0423-d847-456f-aff0-8b0cfc03066b' },
+  { key: 'romance', label: 'رومانسي', tagId: '423e2eae-a7a2-4a8b-ac03-a8351462d71d' },
+  { key: 'isekai', label: 'إيسيكاي', tagId: 'ace04997-f6bd-436e-b261-779182193d3d' },
+  { key: 'fantasy', label: 'خيال', tagId: 'cdc58593-87dd-415e-bbc0-2ec27bf404cc' },
+  { key: 'comedy', label: 'كوميدي', tagId: '4d32cc48-9f00-4cca-9b5a-a839f0764984' },
+  { key: 'horror', label: 'رعب', tagId: 'cdad7e68-1419-41dd-bdce-27753074a640' },
+];
+
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 app.use(express.json());
 
@@ -125,6 +137,12 @@ async function filterReadable(mangaList, wanted) {
 const HOME_CACHE_TTL_MS = 15 * 60 * 1000;
 let homeCache = { data: null, t: 0, inflight: null };
 
+async function fetchGenreRow(tagId, wanted = 12, candidates = 22) {
+  const url = `${MD_BASE}/manga?limit=${candidates}&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}&includedTags[]=${tagId}`;
+  const data = await cachedFetchJson(url);
+  return filterReadable(data.data.map(mapManga), wanted);
+}
+
 async function buildHomePayload() {
   const WANTED = 18;
   const CANDIDATES = 30; // over-fetch since some will fail the readable-chapter check
@@ -134,11 +152,18 @@ async function buildHomePayload() {
     cachedFetchJson(popularUrl),
     cachedFetchJson(latestUrl),
   ]);
-  const [popularOk, latestOk] = await Promise.all([
+  const [popularOk, latestOk, genreRows] = await Promise.all([
     filterReadable(popular.data.map(mapManga), WANTED),
     filterReadable(latest.data.map(mapManga), WANTED),
+    Promise.all(GENRES.map((g) => fetchGenreRow(g.tagId))),
   ]);
-  return { popular: popularOk, latest: latestOk };
+  const genres = GENRES.map((g, i) => ({ key: g.key, label: g.label, items: genreRows[i] })).filter(
+    (g) => g.items.length > 0
+  );
+  // Hero banner: a handful of eye-catching picks from the popular list, with
+  // a cover we already know is readable (used for the rotating home banner).
+  const hero = popularOk.slice(0, 6);
+  return { hero, popular: popularOk, latest: latestOk, genres };
 }
 
 app.get('/api/home', async (req, res) => {
@@ -161,6 +186,18 @@ app.get('/api/home', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(502).json({ error: 'failed to reach MangaDex' });
+  }
+});
+
+app.get('/api/genre/:key', async (req, res) => {
+  const genre = GENRES.find((g) => g.key === req.params.key);
+  if (!genre) return res.status(404).json({ error: 'unknown genre' });
+  try {
+    const items = await fetchGenreRow(genre.tagId, 36, 60);
+    res.json({ label: genre.label, items });
+  } catch (e) {
+    console.error(e);
+    res.status(502).json({ error: 'failed to load genre' });
   }
 });
 

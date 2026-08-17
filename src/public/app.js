@@ -12,12 +12,22 @@ function loadingHtml() {
   return `<div class="loading"><div class="spinner"></div>جارِ التحميل…</div>`;
 }
 
+function skeletonGrid(n = 12) {
+  return `<div class="grid">${Array.from({ length: n })
+    .map(() => `<div class="card"><div class="skeleton" style="aspect-ratio:2/3"></div></div>`)
+    .join('')}</div>`;
+}
+
 function cardHtml(m) {
-  const cover = m.cover || 'https://placehold.co/260x380/1b1f2b/555?text=No+Cover';
+  const cover = m.cover || 'https://placehold.co/260x380/1c1826/9791ac?text=dzmanga';
   return `<a class="card" href="#/manga/${m.id}">
     <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" />
     <div class="title">${escapeHtml(m.title)}</div>
   </a>`;
+}
+
+function rowHtml(items) {
+  return `<div class="row">${items.map(cardHtml).join('')}</div>`;
 }
 
 function escapeHtml(s) {
@@ -32,24 +42,68 @@ async function getJson(url) {
   return res.json();
 }
 
+function startHeroRotation() {
+  const slides = document.querySelectorAll('.hero-slide');
+  const dots = document.querySelectorAll('.hero-dots span');
+  if (!slides.length) return;
+  let i = 0;
+  clearInterval(window.__heroTimer);
+  window.__heroTimer = setInterval(() => {
+    slides[i].classList.remove('active');
+    dots[i]?.classList.remove('active');
+    i = (i + 1) % slides.length;
+    slides[i].classList.add('active');
+    dots[i]?.classList.add('active');
+  }, 4200);
+}
+
+function heroHtml(hero) {
+  if (!hero || !hero.length) return '';
+  const slides = hero
+    .map(
+      (m, i) => `
+    <a class="hero-slide ${i === 0 ? 'active' : ''}" href="#/manga/${m.id}">
+      <div class="bg" style="background-image:url('${m.cover}')"></div>
+      <div class="fade"></div>
+      <div class="hero-content">
+        <span class="hero-badge">🔥 الأكثر شعبية</span>
+        <div class="hero-title">${escapeHtml(m.title)}</div>
+        <span class="hero-cta">اقرأ الآن ←</span>
+      </div>
+    </a>`
+    )
+    .join('');
+  const dots = hero.map((_, i) => `<span class="${i === 0 ? 'active' : ''}"></span>`).join('');
+  return `<div class="hero">${slides}<div class="hero-dots">${dots}</div></div>`;
+}
+
 async function renderHome() {
-  app.innerHTML = loadingHtml();
+  app.innerHTML = `
+    <div class="hero skeleton" style="height:280px;margin:18px 0 8px"></div>
+    <h2 class="section">🆕 آخر التحديثات</h2>${skeletonGrid(6)}
+  `;
   try {
-    const { popular, latest } = await getJson('/api/home');
-    app.innerHTML = `
-      <h2 class="section">🔥 الأكثر شعبية</h2>
-      <div class="grid">${popular.map(cardHtml).join('')}</div>
-      <h2 class="section">🆕 آخر التحديثات</h2>
-      <div class="grid">${latest.map(cardHtml).join('')}</div>
-    `;
+    const { hero, popular, latest, genres } = await getJson('/api/home');
+    let html = heroHtml(hero);
+    html += `<h2 class="section">🆕 آخر التحديثات</h2>${rowHtml(latest)}`;
+    html += `<h2 class="section">🔥 الأكثر شعبية</h2>${rowHtml(popular)}`;
+    for (const g of genres || []) {
+      html += `<h2 class="section">${genreEmoji(g.key)} ${escapeHtml(g.label)}</h2>${rowHtml(g.items)}`;
+    }
+    app.innerHTML = html;
+    startHeroRotation();
   } catch (e) {
     app.innerHTML = `<div class="empty">تعذّر الوصول إلى MangaDex. حاول مجدداً بعد قليل.</div>`;
   }
 }
 
+function genreEmoji(key) {
+  return { action: '⚔️', romance: '💗', isekai: '🌌', fantasy: '🐉', comedy: '😂', horror: '👻' }[key] || '📚';
+}
+
 async function renderSearch(q) {
   searchInput.value = q;
-  app.innerHTML = loadingHtml();
+  app.innerHTML = `<h2 class="section">نتائج البحث عن "${escapeHtml(q)}"</h2>${skeletonGrid(12)}`;
   try {
     const { results } = await getJson(`/api/search?q=${encodeURIComponent(q)}`);
     app.innerHTML = `
@@ -68,7 +122,7 @@ async function renderManga(id) {
       getJson(`/api/manga/${id}`),
       getJson(`/api/manga/${id}/chapters`),
     ]);
-    const cover = manga.cover || 'https://placehold.co/260x380/1b1f2b/555?text=No+Cover';
+    const cover = manga.cover || 'https://placehold.co/260x380/1c1826/9791ac?text=dzmanga';
     app.innerHTML = `
       <a class="backlink" href="#/">&rarr; رجوع</a>
       <div class="detail">
