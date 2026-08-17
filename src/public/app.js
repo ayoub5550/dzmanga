@@ -181,10 +181,60 @@ async function renderReader(chapterId, mangaId, idx) {
   }
 }
 
+async function renderBrowse() {
+  app.innerHTML = `<h2 class="section">📚 تصفّح كل المانجا العربية</h2>${skeletonGrid(18)}`;
+  let offset = 0;
+  let done = false;
+  let loading = false;
+  const seen = new Set();
+
+  function shell(itemsHtml) {
+    return `
+      <h2 class="section">📚 تصفّح كل المانجا العربية</h2>
+      <div class="grid" id="browseGrid">${itemsHtml}</div>
+      <div id="browseFooter" style="text-align:center;padding:24px 0">
+        ${done ? '<span class="empty">وصلت لنهاية القائمة 🎉</span>' : '<button class="btn primary" id="loadMoreBtn">حمّل المزيد</button>'}
+      </div>
+    `;
+  }
+
+  async function loadMore() {
+    if (loading || done) return;
+    loading = true;
+    const btn = document.getElementById('loadMoreBtn');
+    if (btn) btn.textContent = 'جارِ التحميل…';
+    try {
+      const data = await getJson(`/api/browse?offset=${offset}`);
+      offset = data.nextOffset;
+      done = data.done;
+      const fresh = data.items.filter((m) => !seen.has(m.id));
+      fresh.forEach((m) => seen.add(m.id));
+      const grid = document.getElementById('browseGrid');
+      if (grid) grid.insertAdjacentHTML('beforeend', fresh.map(cardHtml).join(''));
+      const footer = document.getElementById('browseFooter');
+      if (footer) {
+        footer.innerHTML = done
+          ? '<span class="empty">وصلت لنهاية القائمة 🎉</span>'
+          : '<button class="btn primary" id="loadMoreBtn">حمّل المزيد</button>';
+        document.getElementById('loadMoreBtn')?.addEventListener('click', loadMore);
+      }
+    } catch (e) {
+      const footer = document.getElementById('browseFooter');
+      if (footer) footer.innerHTML = '<span class="empty">تعذّر التحميل، حاول مجدداً</span>';
+    }
+    loading = false;
+  }
+
+  app.innerHTML = shell('');
+  document.getElementById('loadMoreBtn')?.addEventListener('click', loadMore);
+  await loadMore();
+}
+
 function router() {
   const hash = location.hash.replace(/^#/, '') || '/';
   const parts = hash.split('/').filter(Boolean);
   if (parts.length === 0) return renderHome();
+  if (parts[0] === 'browse') return renderBrowse();
   if (parts[0] === 'search' && parts[1]) return renderSearch(decodeURIComponent(parts[1]));
   if (parts[0] === 'manga' && parts[1]) return renderManga(parts[1]);
   if (parts[0] === 'read' && parts[1] && parts[2] && parts[3] !== undefined) {

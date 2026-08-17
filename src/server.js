@@ -189,6 +189,35 @@ app.get('/api/home', async (req, res) => {
   }
 });
 
+// Full-catalog browse: paginates through *all* MangaDex titles that have a
+// readable Arabic chapter (not just the curated home sections), ordered by
+// followedCount so the most relevant/known titles surface first. Cursor is
+// the raw MangaDex offset (not the count of items we actually returned,
+// since some candidates get filtered out) so the client just echoes back
+// `nextOffset` on the next call.
+const BROWSE_PAGE = 30;
+const BROWSE_MAX_UPSTREAM_PAGES = 6; // safety cap per request so we don't hang forever on a sparse tail
+
+app.get('/api/browse', async (req, res) => {
+  try {
+    let offset = parseInt(req.query.offset, 10) || 0;
+    const collected = [];
+    let total = Infinity;
+    for (let page = 0; page < BROWSE_MAX_UPSTREAM_PAGES && offset < total && collected.length < 12; page++) {
+      const url = `${MD_BASE}/manga?limit=${BROWSE_PAGE}&offset=${offset}&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=${LANG}`;
+      const data = await cachedFetchJson(url);
+      total = data.total;
+      const ok = await filterReadable(data.data.map(mapManga), BROWSE_PAGE);
+      collected.push(...ok);
+      offset += BROWSE_PAGE;
+    }
+    res.json({ items: collected, nextOffset: offset, done: offset >= total });
+  } catch (e) {
+    console.error(e);
+    res.status(502).json({ error: 'failed to browse MangaDex' });
+  }
+});
+
 app.get('/api/genre/:key', async (req, res) => {
   const genre = GENRES.find((g) => g.key === req.params.key);
   if (!genre) return res.status(404).json({ error: 'unknown genre' });

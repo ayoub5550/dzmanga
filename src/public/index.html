@@ -29,9 +29,16 @@
 
   header{position:sticky;top:0;z-index:20;background:rgba(10,10,15,.75);backdrop-filter:blur(10px);
     display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #241f30}
-  header .logo{font-weight:800;font-size:22px;letter-spacing:.2px;display:flex;align-items:center;gap:6px}
-  header .logo .flame{filter:drop-shadow(0 0 6px rgba(255,61,104,.7))}
-  header .logo span{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header .logo{display:flex;align-items:center;gap:9px}
+  .logo-badge{width:34px;height:34px;border-radius:10px;flex-shrink:0;background:var(--accent-grad);
+    display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(255,61,104,.35)}
+  .logo-badge svg{width:19px;height:19px}
+  .logo-word{font-weight:800;font-size:21px;letter-spacing:-.02em;line-height:1;
+    display:flex;flex-direction:column;align-items:flex-start}
+  .logo-word .top{display:flex}
+  .logo-word .dz{color:var(--text)}
+  .logo-word .manga{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .logo-word .bar{width:26px;height:3px;border-radius:2px;background:var(--accent-grad);margin-top:3px}
   header form{flex:1;display:flex}
   header input{flex:1;background:var(--card);border:1px solid #2c2638;color:var(--text);
     padding:11px 16px;border-radius:999px;font-size:14px;outline:none;text-align:right;
@@ -115,10 +122,16 @@
 </head>
 <body>
 <header>
-  <a href="#/" class="logo" dir="ltr">dz<span>manga</span> <span class="flame">🔥</span></a>
+  <a href="#/" class="logo" dir="ltr">
+    <span class="logo-badge">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z" fill="#fff"/></svg>
+    </span>
+    <span class="logo-word"><span class="top"><span class="dz">dz</span><span class="manga">manga</span></span><span class="bar"></span></span>
+  </a>
   <form id="searchForm">
     <input id="searchInput" type="search" placeholder="ابحث عن مانجا…" />
   </form>
+  <a href="#/browse" class="btn" style="white-space:nowrap">تصفّح الكل</a>
 </header>
 <main id="app"></main>
 <script src="/app.js"></script>
