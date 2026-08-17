@@ -461,15 +461,28 @@ app.get('/img', async (req, res) => {
     return res.status(400).send('bad url');
   }
   try {
-    const upstream = await fetch(u, { headers: { 'User-Agent': 'dzmanga/1.0' } });
+    // Short timeout: during a network-level IP block the TLS handshake can
+    // succeed but the response never arrives, which would otherwise hang
+    // this request for a long time before falling back to the redirect.
+    const upstream = await fetch(u, {
+      headers: { 'User-Agent': 'dzmanga/1.0' },
+      signal: AbortSignal.timeout(6000),
+    });
     if (!upstream.ok) return res.status(upstream.status).end();
     res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=86400');
     const buf = Buffer.from(await upstream.arrayBuffer());
     res.send(buf);
   } catch (e) {
-    console.error(e);
-    res.status(502).end();
+    // Server-side fetch failed — most likely the same network-level IP
+    // block that hits the JSON API (see cachedFetchJson). No good binary
+    // proxy exists for images (jina.ai reader only handles text, and
+    // image proxy services like weserv.nl block the mangadex domain by
+    // policy), so fall back to sending the browser straight to the
+    // original MangaDex CDN URL. The end-user's own IP isn't blocked, so
+    // this recovers the image; it just skips the ISP-friendliness this
+    // proxy normally provides.
+    res.redirect(302, u);
   }
 });
 
