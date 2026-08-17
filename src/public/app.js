@@ -79,6 +79,14 @@ function loadingHtml() {
   return `<div class="loading"><div class="spinner"></div>جارِ التحميل…</div>`;
 }
 
+// Generic error state with a retry button — MangaDex occasionally hiccups
+// (rate limits / transient network blips), so every failure screen should
+// let the user try again with one tap instead of forcing a full reload.
+function errorHtml(message, retryFn) {
+  window.__retry = retryFn;
+  return `<div class="empty">${message}<div style="margin-top:12px"><button class="btn primary" onclick="window.__retry && window.__retry()">أعد المحاولة</button></div></div>`;
+}
+
 function skeletonGrid(n = 12) {
   return `<div class="grid">${Array.from({ length: n })
     .map(() => `<div class="card"><div class="skeleton" style="aspect-ratio:2/3"></div></div>`)
@@ -86,7 +94,7 @@ function skeletonGrid(n = 12) {
 }
 
 function cardHtml(m) {
-  const cover = m.cover || 'https://placehold.co/260x380/1c1826/9791ac?text=dzmanga';
+  const cover = m.cover || 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
   return `<a class="card" href="#/manga/${m.id}">
     <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" />
     <div class="title">${escapeHtml(m.title)}</div>
@@ -160,7 +168,7 @@ async function renderHome() {
     app.innerHTML = html;
     startHeroRotation();
   } catch (e) {
-    app.innerHTML = `<div class="empty">تعذّر الوصول إلى MangaDex. حاول مجدداً بعد قليل.</div>`;
+    app.innerHTML = errorHtml('تعذّر الوصول إلى MangaDex. حاول مجدداً بعد قليل.', renderHome);
   }
 }
 
@@ -178,7 +186,7 @@ async function renderSearch(q) {
       ${results.length ? `<div class="grid">${results.map(cardHtml).join('')}</div>` : `<div class="empty">لا توجد نتائج بالعربية لهذا البحث.</div>`}
     `;
   } catch (e) {
-    app.innerHTML = `<div class="empty">فشل البحث. حاول مجدداً.</div>`;
+    app.innerHTML = errorHtml('فشل البحث. حاول مجدداً.', () => renderSearch(q));
   }
 }
 
@@ -260,7 +268,7 @@ async function renderManga(id) {
     window.__chapterCache = window.__chapterCache || {};
     window.__chapterCache[manga.id] = chapters;
   } catch (e) {
-    app.innerHTML = `<div class="empty">تعذّر تحميل هذه المانجا.</div>`;
+    app.innerHTML = errorHtml('تعذّر تحميل هذه المانجا.', () => renderManga(id));
   }
 }
 
@@ -291,7 +299,7 @@ async function renderReader(chapterId, mangaId, idx) {
     `;
     window.scrollTo(0, 0);
   } catch (e) {
-    app.innerHTML = `<div class="empty">تعذّر تحميل هذا الفصل.</div>`;
+    app.innerHTML = errorHtml('تعذّر تحميل هذا الفصل.', () => renderReader(chapterId, mangaId, idx));
   }
 }
 
@@ -355,7 +363,7 @@ async function loadAllPage(body, page) {
       });
     });
   } catch (e) {
-    body.innerHTML = `<div class="empty">تعذّر التحميل، حاول مجدداً.</div>`;
+    body.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => loadAllPage(body, page));
   }
 }
 
@@ -386,7 +394,7 @@ async function renderBrowse(activeTab = 'all') {
         ? `<div class="grid">${data.items.map(cardHtml).join('')}</div>`
         : `<div class="empty">لا توجد نتائج بالعربية في هذا القسم حالياً.</div>`;
     } catch (e) {
-      body.innerHTML = `<div class="empty">تعذّر التحميل، حاول مجدداً.</div>`;
+      body.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => renderBrowse(activeTab));
     }
   }
 }
