@@ -32,7 +32,7 @@
 <style>
   :root{
     --bg:#100e11; --bg2:#17141a; --card:#1e1a20; --text:#f6f3e8; --muted:#cfc8b8;
-    --accent:#ee3517; --accent2:#c22508; --accent-grad: #ee3517;
+    --accent:#f2ecdc; --accent2:#d6cfbe; --accent-grad: #f2ecdc;
     --line:color-mix(in srgb, #efe9da 22%, transparent);
     --line2:color-mix(in srgb, #efe9da 40%, transparent);
     --radius:0px;
@@ -42,7 +42,7 @@
     font-family:"Cairo","Tahoma",-apple-system,sans-serif;}
   body{
     background-image:
-      radial-gradient(ellipse at top, color-mix(in srgb, #ee3517 26%, transparent) 0%, transparent 60%),
+      radial-gradient(ellipse at top, color-mix(in srgb, #f6f3e8 12%, transparent) 0%, transparent 60%),
       repeating-conic-gradient(color-mix(in srgb, #f6f3e8 6%, transparent) 0% 25%, transparent 0% 50%);
     background-size:auto, 3px 3px;
     background-attachment:fixed;
@@ -64,8 +64,8 @@
     display:flex;flex-direction:column;align-items:flex-start}
   .logo-word .top{display:flex}
   .logo-word .dz{color:var(--text);text-shadow:0 2px 0 rgba(3,6,20,.55)}
-  .logo-word .manga{color:var(--accent);text-shadow:0 2px 0 rgba(3,6,20,.55)}
-  .logo-word .bar{width:100%;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent) 70%,#f6f3e8 70%);margin-top:3px;box-shadow:0 2px 0 rgba(3,6,20,.5)}
+  .logo-word .manga{color:#d6cfbe;text-shadow:0 2px 0 rgba(3,6,20,.55)}
+  .logo-word .bar{width:100%;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent) 70%,#5f5851 70%);margin-top:3px;box-shadow:0 2px 0 rgba(3,6,20,.5)}
   header form{flex:1;display:flex;min-width:0;position:relative}
   .live-results{position:absolute;top:calc(100% + 8px);right:0;left:0;background:var(--card);
     border:1px solid #383230;border-radius:14px;max-height:70vh;overflow-y:auto;z-index:30;
@@ -80,7 +80,7 @@
   header input{flex:1;min-width:0;width:100%;background:var(--card);border:1px solid #383230;color:var(--text);
     padding:11px 14px;border-radius:999px;font-size:14px;outline:none;text-align:right;
     font-family:inherit; transition:border-color .2s, box-shadow .2s}
-  header input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(238,53,23,.28)}
+  header input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(246,243,232,.22)}
   header .browse-link{flex-shrink:0}
   @media (max-width: 420px){
     header{gap:8px;padding:10px 12px}
@@ -105,8 +105,8 @@
     margin-bottom:10px;letter-spacing:.02em}
   .hero-title{font-size:clamp(20px,4.5vw,30px);font-weight:800;margin:0 0 8px;line-height:1.25;
     text-shadow:0 2px 12px rgba(0,0,0,.6)}
-  .hero-cta{display:inline-flex;align-items:center;gap:6px;background:var(--accent-grad);color:#fff;
-    padding:10px 20px;border-radius:999px;font-weight:700;font-size:13.5px;box-shadow:0 6px 20px rgba(143,232,189,.35)}
+  .hero-cta{display:inline-flex;align-items:center;gap:6px;background:var(--accent-grad);color:#100e11;
+    padding:10px 20px;border-radius:999px;font-weight:700;font-size:13.5px;box-shadow:0 6px 20px rgba(0,0,0,.45)}
   .hero-dots{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:3}
   .hero-dots span{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.35);transition:.3s}
   .hero-dots span.active{background:#fff;width:18px;border-radius:4px}
@@ -171,7 +171,7 @@
     display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid #2a2522;z-index:20}
   .btn{background:var(--card);border:1px solid #383230;color:var(--text);padding:10px 18px;border-radius:999px;
     font-size:13px;cursor:pointer;font-family:inherit;font-weight:600}
-  .btn.primary{background:var(--accent-grad);border:none;font-weight:700;box-shadow:0 6px 18px rgba(143,232,189,.3)}
+  .btn.primary{background:var(--accent-grad);border:none;color:#100e11;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.4)}
   .btn:disabled{opacity:.3}
   .backlink{display:inline-block;margin:14px 0 10px;color:var(--muted);font-size:13px;font-weight:600}
 
@@ -181,7 +181,7 @@
     padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;
     transition:.15s}
   .tab.active .micon{opacity:1}
-  .tab.active{background:var(--accent-grad);color:#fff;border-color:transparent}
+  .tab.active{background:var(--accent-grad);color:#100e11;border-color:transparent}
 
   .pagination{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:22px 0 8px}
   .page-btn{min-width:38px;padding:9px 12px}
@@ -302,9 +302,9 @@
   .btn{color:var(--text);font-weight:600;letter-spacing:.12em;font-size:12px;text-transform:uppercase;padding:11px 18px}
   .btn:hover{border-color:var(--accent)}
   .btn.primary,.tab.active,.src-tab.active,.hero-cta,.hero-badge,.card-chip.ch{
-    background:var(--accent);color:#ffffff;border:1px solid var(--accent);font-weight:700}
+    background:var(--accent);color:#100e11;border:1px solid var(--accent);font-weight:700}
   .tab{letter-spacing:.1em;font-size:12px;color:var(--muted);text-transform:uppercase}
-  .card-src.asq{background:#d31f14;color:#fff}
+  .card-src.asq{background:#f2ecdc;color:#100e11}
   .card-src.md{background:#100e11cc;color:#f6f3e8;border:1px solid var(--line2)}
   .card-chip{background:#100e11cc;color:var(--muted)}
   .tag{background:transparent;border:1px solid var(--line);color:#e9e4d5}
@@ -365,7 +365,7 @@
 <body>
 <header>
   <a href="#/" class="logo" dir="ltr">
-    <span class="logo-badge"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="2" y="2" width="36" height="36" rx="8" fill="#ee3517"/><rect x="5.5" y="5.5" width="29" height="29" rx="5" fill="none" stroke="#f6f3e8" stroke-width="1.6" opacity=".85"/><text x="20" y="26.5" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="15.5" fill="#f6f3e8" letter-spacing="0.5">DZ</text></svg></span>
+    <span class="logo-badge"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="2" y="2" width="36" height="36" rx="8" fill="#f2ecdc"/><rect x="5.5" y="5.5" width="29" height="29" rx="5" fill="none" stroke="#141216" stroke-width="1.6" opacity=".85"/><text x="20" y="26.5" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="15.5" fill="#100e11" letter-spacing="0.5">DZ</text></svg></span>
     <span class="logo-word"><span class="top"><span class="dz">DZ</span><span class="manga">MANGA</span></span><span class="bar"></span></span>
   </a>
   <form id="searchForm" autocomplete="off">
