@@ -635,6 +635,16 @@ async function renderReader(chapterId, mangaId, idx) {
     }
     onScroll();
 
+    // إعادة محاولة تلقائية لأي صفحة فشلت صورتها (مصدر 3asq يتعثّر أحياناً)
+    imgs.forEach((im) => {
+      im.addEventListener('error', () => {
+        if (im.dataset.retried) return;
+        im.dataset.retried = '1';
+        const base = im.src.split('&_r=')[0];
+        setTimeout(() => { im.src = `${base}&_r=${Date.now()}`; }, 800);
+      });
+    });
+
     // مناطق نقر على الحواف: يمين = السابق، يسار = التالي (اتجاه عربي)
     const reader = document.getElementById('reader');
     reader.addEventListener('click', (e) => {

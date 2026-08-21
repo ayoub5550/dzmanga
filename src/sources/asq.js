@@ -187,16 +187,23 @@ function parseChapters(html, slug) {
   for (const [, block] of blocks) {
     const href = (block.match(/href="([^"]+)"/) || [])[1];
     if (!href) continue;
-    const chSlug = (href.match(/\/manga\/[^/]+\/([^/?#]+)/) || [])[1];
+    let chSlug = (href.match(/\/manga\/[^/]+\/([^/?#]+)/) || [])[1];
     if (!chSlug) continue;
+    // روابط الموقع تأتي مُرمَّزة (%d8%a7…)؛ نفكّها هنا حتى لا يُرمَّز المعرّف
+    // مرتين في الواجهة (سبب سابق لعرض فصل فارغ بلا صفحات).
+    try { chSlug = decodeURIComponent(chSlug); } catch (e) { /* keep as-is */ }
     const label = stripTags((block.match(/<a[^>]*>([\s\S]*?)<\/a>/) || [])[1] || '');
     const date = stripTags((block.match(/chapter-release-date[\s\S]*?<i>([\s\S]*?)<\/i>/) || [])[1] || '');
-    const num = (label.match(/^\s*([\d.]+)/) || [])[1] || null;
-    const title = label.replace(/^\s*[\d.]+\s*[-–—]\s*/, '').trim();
+    // رقم الفصل: يكون في بداية النص عادةً، وإلا نأخذ أول رقم داخل العنوان
+    // ("المذكرة 68" في بعض المانجات) — بدونه كان العنوان يظهر "الفصل ؟".
+    const leading = (label.match(/^\s*([\d.]+)/) || [])[1] || null;
+    const num = leading || (label.match(/([\d.]+)/) || [])[1] || null;
+    const stripped = label.replace(/^\s*[\d.]+\s*[-–—]\s*/, '').trim();
+    const title = leading ? (stripped && stripped !== label.trim() ? stripped : null) : label.trim() || null;
     out.push({
       id: `asq:${slug}:${chSlug}`,
       chapter: num,
-      title: num && title && title !== label.trim() ? title : num ? null : label,
+      title,
       dateText: date || null,
       locked: /premium|مدفوع/i.test(block),
     });
@@ -261,6 +268,10 @@ async function chapters(slug) {
 }
 
 async function pages(slug, chapterSlug) {
+  // نقبل المعرّف مُرمَّزاً أو غير مُرمَّز (روابط قديمة محفوظة عند المستخدمين)
+  try {
+    if (/%[0-9a-f]{2}/i.test(chapterSlug)) chapterSlug = decodeURIComponent(chapterSlug);
+  } catch (e) { /* keep as-is */ }
   const html = await fetchText(
     `${BASE}/manga/${encodeURIComponent(slug)}/${encodeURIComponent(chapterSlug)}/`,
     { ttl: TTL.pages }
