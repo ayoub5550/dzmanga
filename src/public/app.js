@@ -6,12 +6,19 @@ const ICONS = {
   sparkle: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.6 4.6l2 2M13.4 13.4l2 2M15.4 4.6l-2 2M6.6 13.4l-2 2"/><circle cx="10" cy="10" r="2.4"/></svg>',
   sword: '<svg viewBox="0 0 20 20" fill="currentColor" stroke="none"><path d="M9 1.5h2l1 8.5H8l1-8.5Z"/><rect x="4.5" y="10.7" width="11" height="1.8" rx=".6"/><rect x="9" y="13.2" width="2" height="3.6" rx=".5"/><circle cx="10" cy="17.8" r="1.2"/></svg>',
   heart: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16.5S3 12.4 3 7.6A3.6 3.6 0 0 1 10 6a3.6 3.6 0 0 1 7 1.6c0 4.8-7 8.9-7 8.9Z"/></svg>',
+  heartFill: '<svg viewBox="0 0 20 20" fill="currentColor" stroke="none"><path d="M10 16.9S2.6 12.6 2.6 7.5A3.9 3.9 0 0 1 10 5.7a3.9 3.9 0 0 1 7.4 1.8c0 5.1-7.4 9.4-7.4 9.4Z"/></svg>',
   portal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><ellipse cx="10" cy="10" rx="7" ry="3.2"/><ellipse cx="10" cy="10" rx="3.2" ry="7"/></svg>',
   wand: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 13 7"/><path d="M15 2l.7 1.8L17.5 4.5 15.7 5.2 15 7l-.7-1.8L12.5 4.5l1.8-.7L15 2Z"/><path d="M5.5 12.5l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5.5-1.3Z"/></svg>',
   mask: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6c2-1.5 4-2 7-2s5 .5 7 2c0 6-3 10.5-7 10.5S3 12 3 6Z"/><path d="M7 9c.4.6 1 .9 1.7.9M13 9c-.4.6-1 .9-1.7.9M7.5 12.5c1 .8 4 .8 5 0"/></svg>',
   ghost: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V9a6 6 0 0 1 12 0v8l-2-1.6L12 17l-2-1.6L8 17l-2-1.6L4 17Z"/><circle cx="7.8" cy="8.6" r=".4" fill="currentColor" stroke="none"/><circle cx="12.2" cy="8.6" r=".4" fill="currentColor" stroke="none"/></svg>',
   grid: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2.5" y="2.5" width="6" height="6" rx="1.2"/><rect x="11.5" y="2.5" width="6" height="6" rx="1.2"/><rect x="2.5" y="11.5" width="6" height="6" rx="1.2"/><rect x="11.5" y="11.5" width="6" height="6" rx="1.2"/></svg>',
   book: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5c1.6-.9 3.4-1 5.5-.3v11.6c-2.1-.7-3.9-.6-5.5.3v-11.6ZM17 4.5c-1.6-.9-3.4-1-5.5-.3v11.6c2.1-.7 3.9-.6 5.5.3v-11.6Z"/></svg>',
+  home: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 10 3l7 5.5V16a1 1 0 0 1-1 1h-3.5v-5h-5v5H4a1 1 0 0 1-1-1V8.5Z"/></svg>',
+  search: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg>',
+  clock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.3"/><path d="M10 5.6V10l2.8 1.8"/></svg>',
+  school: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 2.8 6.6 10 10.2l7.2-3.6L10 3Z"/><path d="M5.5 8.6v4c0 1.4 2 2.4 4.5 2.4s4.5-1 4.5-2.4v-4"/></svg>',
+  drama: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h6v5a3 3 0 0 1-6 0v-5ZM10.5 5.5h6v5a3 3 0 0 1-6 0v-5"/><path d="M5.2 12.4c.9.7 2.2.7 3.1 0M12.2 12.4c.9.7 2.2.7 3.1 0"/></svg>',
+  compass: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><circle cx="10" cy="10" r="7.3"/><path d="m13 7-1.7 4.3L7 13l1.7-4.3L13 7Z"/></svg>',
 };
 
 function icon(name, cls = '') {
@@ -23,6 +30,137 @@ const searchForm = document.getElementById('searchForm');
 const searchInput = document.getElementById('searchInput');
 const liveResults = document.getElementById('liveResults');
 
+// ---------------------------------------------------------------------------
+// التخزين المحلي: تقدّم القراءة + المفضلة.
+// قرار متعمّد (راجع AGENTS.md): لا حسابات ولا قاعدة بيانات — كل شيء على الجهاز
+// عبر localStorage. لو احتجنا لاحقاً مزامنة بين الأجهزة نضيف معرّف جهاز بكوكي
+// + SQLite، دون نظام تسجيل دخول كامل.
+// ---------------------------------------------------------------------------
+const STORE = {
+  progress: 'dz_progress_v1', // mangaId -> { chapterId, chapter, idx, title, cover, at }
+  read: 'dz_read_v1', // mangaId -> [chapterId, ...]
+  favs: 'dz_favs_v1', // [{ id, title, cover, at }]
+};
+
+function load(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key)) ?? fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+function save(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    /* الحصة ممتلئة أو التخزين معطّل — لا نُسقط الواجهة لأجل ذلك */
+  }
+}
+
+const getProgress = () => load(STORE.progress, {});
+function setProgress(manga, chapter, idx) {
+  const all = getProgress();
+  all[manga.id] = {
+    chapterId: chapter.id,
+    chapter: chapter.chapter,
+    idx,
+    title: manga.title,
+    cover: manga.cover,
+    at: Date.now(),
+  };
+  save(STORE.progress, all);
+}
+
+const getRead = () => load(STORE.read, {});
+function markRead(mangaId, chapterId) {
+  const all = getRead();
+  const list = new Set(all[mangaId] || []);
+  list.add(chapterId);
+  all[mangaId] = [...list].slice(-3000);
+  save(STORE.read, all);
+}
+
+const getFavs = () => load(STORE.favs, []);
+const isFav = (id) => getFavs().some((f) => f.id === id);
+function toggleFav(manga) {
+  const favs = getFavs();
+  const i = favs.findIndex((f) => f.id === manga.id);
+  if (i >= 0) favs.splice(i, 1);
+  else favs.unshift({ id: manga.id, title: manga.title, cover: manga.cover, at: Date.now() });
+  save(STORE.favs, favs);
+  return i < 0;
+}
+
+// ---------------------------------------------------------------------------
+// أدوات عامة
+// ---------------------------------------------------------------------------
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+async function getJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('request failed');
+  return res.json();
+}
+
+const PLACEHOLDER = 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
+
+function sourceLabel(src) {
+  return src === 'asq' ? 'العاشق' : 'MangaDex';
+}
+
+function loadingHtml(text = 'جارِ التحميل…') {
+  return `<div class="loading"><div class="spinner"></div>${text}</div>`;
+}
+
+// Generic error state with a retry button — المصادر تتعطل أحياناً، فكل شاشة
+// خطأ يجب أن تسمح بإعادة المحاولة بنقرة واحدة.
+function errorHtml(message, retryFn) {
+  window.__retry = retryFn;
+  return `<div class="empty">${message}<div style="margin-top:12px"><button class="btn primary" onclick="window.__retry && window.__retry()">أعد المحاولة</button></div></div>`;
+}
+
+function skeletonGrid(n = 12) {
+  return `<div class="grid">${Array.from({ length: n })
+    .map(() => `<div class="card"><div class="skeleton" style="aspect-ratio:2/3"></div></div>`)
+    .join('')}</div>`;
+}
+
+// بطاقة على طريقة تطبيقات المانجا العربية (Manga Slayer وغيرها): غلاف + شارة
+// آخر فصل + شارة المصدر + العنوان.
+function cardHtml(m) {
+  const cover = m.cover || PLACEHOLDER;
+  const chapterBadge = m.latestChapter
+    ? `<span class="card-chip ch">${escapeHtml(String(m.latestChapter).replace(/^الفصل\s*/, ''))}</span>`
+    : '';
+  const ratingBadge = m.rating ? `<span class="card-chip rate">★ ${m.rating}</span>` : '';
+  return `<a class="card" href="#/manga/${encodeURIComponent(m.id)}">
+    <div class="card-art">
+      <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" referrerpolicy="no-referrer" />
+      <span class="card-src ${m.source === 'asq' ? 'asq' : 'md'}">${sourceLabel(m.source)}</span>
+      <div class="card-chips">${chapterBadge}${ratingBadge}</div>
+    </div>
+    <div class="title">${escapeHtml(m.title)}</div>
+  </a>`;
+}
+
+function rowHtml(items) {
+  return `<div class="row">${items.map(cardHtml).join('')}</div>`;
+}
+
+function sectionHtml(iconName, label, items, more) {
+  if (!items || !items.length) return '';
+  return `<h2 class="section">${icon(iconName)} ${escapeHtml(label)}${
+    more ? `<a class="more" href="${more.href}">${escapeHtml(more.label)} ←</a>` : ''
+  }</h2>${rowHtml(items)}`;
+}
+
+// ---------------------------------------------------------------------------
+// البحث الفوري في الشريط العلوي
+// ---------------------------------------------------------------------------
 searchForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const q = searchInput.value.trim();
@@ -39,9 +177,10 @@ function closeLiveResults() {
 
 function liveItemHtml(m) {
   const cover = m.cover || 'https://placehold.co/68x96/171f1a/8a9a8f?text=%20';
-  return `<a class="live-item" href="#/manga/${m.id}">
+  return `<a class="live-item" href="#/manga/${encodeURIComponent(m.id)}">
     <img src="${cover}" loading="lazy" referrerpolicy="no-referrer" />
     <span class="t">${escapeHtml(m.title)}</span>
+    <span class="src ${m.source === 'asq' ? 'asq' : 'md'}">${sourceLabel(m.source)}</span>
   </a>`;
 }
 
@@ -75,48 +214,9 @@ document.addEventListener('click', (e) => {
 liveResults.addEventListener('click', () => closeLiveResults());
 window.addEventListener('hashchange', closeLiveResults);
 
-function loadingHtml() {
-  return `<div class="loading"><div class="spinner"></div>جارِ التحميل…</div>`;
-}
-
-// Generic error state with a retry button — MangaDex occasionally hiccups
-// (rate limits / transient network blips), so every failure screen should
-// let the user try again with one tap instead of forcing a full reload.
-function errorHtml(message, retryFn) {
-  window.__retry = retryFn;
-  return `<div class="empty">${message}<div style="margin-top:12px"><button class="btn primary" onclick="window.__retry && window.__retry()">أعد المحاولة</button></div></div>`;
-}
-
-function skeletonGrid(n = 12) {
-  return `<div class="grid">${Array.from({ length: n })
-    .map(() => `<div class="card"><div class="skeleton" style="aspect-ratio:2/3"></div></div>`)
-    .join('')}</div>`;
-}
-
-function cardHtml(m) {
-  const cover = m.cover || 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
-  return `<a class="card" href="#/manga/${m.id}">
-    <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" referrerpolicy="no-referrer" />
-    <div class="title">${escapeHtml(m.title)}</div>
-  </a>`;
-}
-
-function rowHtml(items) {
-  return `<div class="row">${items.map(cardHtml).join('')}</div>`;
-}
-
-function escapeHtml(s) {
-  return (s || '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
-
-async function getJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('request failed');
-  return res.json();
-}
-
+// ---------------------------------------------------------------------------
+// الصفحة الرئيسية
+// ---------------------------------------------------------------------------
 function startHeroRotation() {
   const slides = document.querySelectorAll('.hero-slide');
   const dots = document.querySelectorAll('.hero-dots span');
@@ -137,7 +237,7 @@ function heroHtml(hero) {
   const slides = hero
     .map(
       (m, i) => `
-    <a class="hero-slide ${i === 0 ? 'active' : ''}" href="#/manga/${m.id}">
+    <a class="hero-slide ${i === 0 ? 'active' : ''}" href="#/manga/${encodeURIComponent(m.id)}">
       <div class="bg" style="background-image:url('${m.cover}')"></div>
       <div class="fade"></div>
       <div class="hero-content">
@@ -152,47 +252,114 @@ function heroHtml(hero) {
   return `<div class="hero">${slides}<div class="hero-dots">${dots}</div></div>`;
 }
 
+// "تابع القراءة" — أهم قسم في تطبيقات المانجا: يعيدك مباشرة لآخر فصل فتحته.
+function continueHtml() {
+  const items = Object.entries(getProgress())
+    .map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => b.at - a.at)
+    .slice(0, 12);
+  if (!items.length) return '';
+  const cards = items
+    .map(
+      (p) => `<a class="cont-card" href="#/read/${encodeURIComponent(p.chapterId)}/${encodeURIComponent(p.id)}/${p.idx}">
+      <img src="${p.cover || PLACEHOLDER}" loading="lazy" referrerpolicy="no-referrer" alt="${escapeHtml(p.title)}" />
+      <div class="cont-info">
+        <div class="t">${escapeHtml(p.title)}</div>
+        <div class="c">الفصل ${escapeHtml(String(p.chapter ?? '؟'))}</div>
+      </div>
+    </a>`
+    )
+    .join('');
+  return `<h2 class="section">${icon('clock')} تابع القراءة</h2><div class="row cont-row">${cards}</div>`;
+}
+
 async function renderHome() {
+  setActiveNav('home');
   app.innerHTML = `
     <div class="hero skeleton" style="height:280px;margin:18px 0 8px"></div>
     <h2 class="section">${icon('sparkle')} آخر التحديثات</h2>${skeletonGrid(6)}
   `;
   try {
-    const { hero, popular, latest, genres } = await getJson('/api/home');
-    let html = heroHtml(hero);
-    html += `<h2 class="section">${icon('sparkle')} آخر التحديثات</h2>${rowHtml(latest)}`;
-    html += `<h2 class="section">${icon('fire')} الأكثر شعبية</h2>${rowHtml(popular)}`;
-    for (const g of genres || []) {
-      html += `<h2 class="section">${icon(genreIconName(g.key))} ${escapeHtml(g.label)}</h2>${rowHtml(g.items)}`;
+    const data = await getJson('/api/home');
+    const asqData = data.asq || { latest: [], popular: [], genres: [] };
+    const mdData = data.md || { latest: [], popular: [], genres: [] };
+    let html = heroHtml(data.hero);
+    html += continueHtml();
+    html += sectionHtml('sparkle', 'آخر التحديثات — مانجا العاشق', asqData.latest, {
+      href: '#/browse/asq/latest',
+      label: 'الكل',
+    });
+    html += sectionHtml('fire', 'الأكثر شعبية — مانجا العاشق', asqData.popular, {
+      href: '#/browse/asq/popular',
+      label: 'الكل',
+    });
+    for (const g of asqData.genres || []) {
+      html += sectionHtml(genreIconName(g.key), g.label, g.items, {
+        href: `#/browse/asq/genre-${g.key}`,
+        label: 'الكل',
+      });
     }
+    html += sectionHtml('sparkle', 'آخر التحديثات — MangaDex', mdData.latest, {
+      href: '#/browse/md',
+      label: 'الكل',
+    });
+    html += sectionHtml('fire', 'الأكثر شعبية — MangaDex', mdData.popular);
     app.innerHTML = html;
     startHeroRotation();
   } catch (e) {
-    app.innerHTML = errorHtml('تعذّر الوصول إلى MangaDex. حاول مجدداً بعد قليل.', renderHome);
+    app.innerHTML = errorHtml('تعذّر الوصول إلى المصادر. حاول مجدداً بعد قليل.', renderHome);
   }
 }
 
 function genreIconName(key) {
-  return { action: 'sword', romance: 'heart', isekai: 'portal', fantasy: 'wand', comedy: 'mask', horror: 'ghost' }[key] || 'book';
+  return {
+    action: 'sword',
+    romance: 'heart',
+    isekai: 'portal',
+    fantasy: 'wand',
+    comedy: 'mask',
+    horror: 'ghost',
+    drama: 'drama',
+    adventure: 'compass',
+    school: 'school',
+  }[key] || 'book';
 }
 
+// ---------------------------------------------------------------------------
+// البحث (صفحة كاملة، مقسّمة حسب المصدر)
+// ---------------------------------------------------------------------------
 async function renderSearch(q) {
+  setActiveNav('search');
   searchInput.value = q;
   app.innerHTML = `<h2 class="section">نتائج البحث عن "${escapeHtml(q)}"</h2>${skeletonGrid(12)}`;
   try {
-    const { results } = await getJson(`/api/search?q=${encodeURIComponent(q)}`);
-    app.innerHTML = `
-      <h2 class="section">نتائج البحث عن "${escapeHtml(q)}"</h2>
-      ${results.length ? `<div class="grid">${results.map(cardHtml).join('')}</div>` : `<div class="empty">لا توجد نتائج بالعربية لهذا البحث.</div>`}
-    `;
+    const data = await getJson(`/api/search?q=${encodeURIComponent(q)}`);
+    const asqRes = data.asq || [];
+    const mdRes = data.md || [];
+    if (!asqRes.length && !mdRes.length) {
+      app.innerHTML = `<h2 class="section">نتائج البحث عن "${escapeHtml(q)}"</h2>
+        <div class="empty">لا توجد نتائج بالعربية لهذا البحث.</div>`;
+      return;
+    }
+    let html = '';
+    if (asqRes.length)
+      html += `<h2 class="section">${icon('book')} مانجا العاشق (${asqRes.length})</h2>
+        <div class="grid">${asqRes.map(cardHtml).join('')}</div>`;
+    if (mdRes.length)
+      html += `<h2 class="section">${icon('grid')} MangaDex (${mdRes.length})</h2>
+        <div class="grid">${mdRes.map(cardHtml).join('')}</div>`;
+    app.innerHTML = html;
   } catch (e) {
     app.innerHTML = errorHtml('فشل البحث. حاول مجدداً.', () => renderSearch(q));
   }
 }
 
-// Chapters come from the API in ascending order; the reader's prev/next
-// logic indexes into that exact array, so we keep each chapter's original
-// index (`idx`) attached no matter how we group/reverse them for display.
+// ---------------------------------------------------------------------------
+// صفحة المانجا
+// ---------------------------------------------------------------------------
+// فصول MangaDex تأتي تصاعدياً ومجمّعة بالمجلدات؛ فصول العاشق تأتي تصاعدية بلا
+// مجلدات. في الحالتين نحتفظ بالفهرس الأصلي (`idx`) لأن القارئ يعتمد عليه في
+// التنقّل بين الفصول.
 function groupChaptersByVolume(chapters, descending) {
   const withIdx = chapters.map((c, idx) => ({ ...c, idx }));
   const ordered = descending ? [...withIdx].reverse() : withIdx;
@@ -209,49 +376,73 @@ function groupChaptersByVolume(chapters, descending) {
   return groups;
 }
 
-function chapterRowHtml(c, mangaId) {
+function chapterRowHtml(c, mangaId, readSet) {
+  const isRead = readSet.has(c.id);
+  const date = c.dateText || (c.publishAt ? new Date(c.publishAt).toLocaleDateString('ar') : '');
   return `
-    <a class="chapter-row" href="#/read/${c.id}/${mangaId}/${c.idx}">
+    <a class="chapter-row ${isRead ? 'read' : ''}" href="#/read/${encodeURIComponent(c.id)}/${encodeURIComponent(mangaId)}/${c.idx}">
       <span>
         <span class="ch-title">الفصل ${c.chapter ?? '؟'}${c.title ? ' — ' + escapeHtml(c.title) : ''}</span>
         ${c.group ? `<span class="ch-group">${escapeHtml(c.group)}</span>` : ''}
       </span>
-      <span class="date">${c.publishAt ? new Date(c.publishAt).toLocaleDateString('ar') : ''}</span>
+      <span class="date">${escapeHtml(date)}${isRead ? ' · مقروء' : ''}</span>
     </a>`;
 }
 
 function chaptersHtml(chapters, mangaId, descending) {
   if (!chapters.length) return '<div class="empty">لا توجد فصول بالعربية حالياً.</div>';
+  const readSet = new Set(getRead()[mangaId] || []);
   const groups = groupChaptersByVolume(chapters, descending);
   return groups
     .map(
       (g) => `
     <div class="volume-group">
       ${g.key !== 'no-volume' || groups.length > 1 ? `<div class="volume-label">${escapeHtml(g.label)}</div>` : ''}
-      <div class="chapters">${g.items.map((c) => chapterRowHtml(c, mangaId)).join('')}</div>
+      <div class="chapters">${g.items.map((c) => chapterRowHtml(c, mangaId, readSet)).join('')}</div>
     </div>`
     )
     .join('');
 }
 
 async function renderManga(id) {
+  setActiveNav(null);
   app.innerHTML = loadingHtml();
   try {
     const [manga, { chapters }] = await Promise.all([
-      getJson(`/api/manga/${id}`),
-      getJson(`/api/manga/${id}/chapters`),
+      getJson(`/api/manga/${encodeURIComponent(id)}`),
+      getJson(`/api/manga/${encodeURIComponent(id)}/chapters`),
     ]);
-    const cover = manga.cover || 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
+    const cover = manga.cover || PLACEHOLDER;
     let descending = true; // newest chapters first by default, like most manga readers
+    const progress = getProgress()[manga.id];
+    const resumeIdx = progress ? progress.idx : 0;
+    const resumeChapter = chapters[resumeIdx] || chapters[0];
+    const metaBits = [manga.author, manga.status, manga.year, manga.team].filter(Boolean);
     app.innerHTML = `
       <a class="backlink" href="#/">&rarr; رجوع</a>
       <div class="detail">
         <img src="${cover}" alt="${escapeHtml(manga.title)}" referrerpolicy="no-referrer" />
         <div class="info">
           <h1>${escapeHtml(manga.title)}</h1>
-          <div class="meta">${manga.author ? escapeHtml(manga.author) + ' · ' : ''}${manga.status || ''} ${manga.year ? '· ' + manga.year : ''}</div>
-          <div class="tags">${manga.tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
+          <div class="meta">
+            <span class="card-src ${manga.source === 'asq' ? 'asq' : 'md'}" style="position:static">${sourceLabel(manga.source)}</span>
+            ${manga.rating ? `<span class="dot-sep">★ ${manga.rating}</span>` : ''}
+            ${metaBits.map((b) => `<span class="dot-sep">${escapeHtml(String(b))}</span>`).join('')}
+          </div>
+          <div class="tags">${(manga.tags || []).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
           <div class="desc">${escapeHtml(manga.description) || 'لا يوجد وصف.'}</div>
+          <div class="detail-actions">
+            ${
+              resumeChapter
+                ? `<a class="btn primary" href="#/read/${encodeURIComponent(resumeChapter.id)}/${encodeURIComponent(manga.id)}/${resumeIdx}">
+                     ${progress ? `تابع من الفصل ${escapeHtml(String(resumeChapter.chapter ?? '؟'))}` : 'ابدأ القراءة'} ←
+                   </a>`
+                : ''
+            }
+            <button class="btn fav-btn" id="favBtn">${icon(isFav(manga.id) ? 'heartFill' : 'heart')} ${
+              isFav(manga.id) ? 'في المفضلة' : 'أضف للمفضلة'
+            }</button>
+          </div>
         </div>
       </div>
       <h2 class="section">
@@ -265,6 +456,12 @@ async function renderManga(id) {
       e.target.textContent = descending ? 'تنازلي ⇅' : 'تصاعدي ⇅';
       document.getElementById('chapterList').innerHTML = chaptersHtml(chapters, manga.id, descending);
     });
+    document.getElementById('favBtn')?.addEventListener('click', (e) => {
+      const nowFav = toggleFav(manga);
+      e.currentTarget.innerHTML = `${icon(nowFav ? 'heartFill' : 'heart')} ${nowFav ? 'في المفضلة' : 'أضف للمفضلة'}`;
+    });
+    window.__mangaCache = window.__mangaCache || {};
+    window.__mangaCache[manga.id] = manga;
     window.__chapterCache = window.__chapterCache || {};
     window.__chapterCache[manga.id] = chapters;
   } catch (e) {
@@ -272,42 +469,148 @@ async function renderManga(id) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// القارئ
+// ---------------------------------------------------------------------------
 async function renderReader(chapterId, mangaId, idx) {
-  app.innerHTML = loadingHtml();
+  setActiveNav(null);
+  app.innerHTML = loadingHtml('جارِ تحميل الفصل…');
   try {
     let chapters = window.__chapterCache?.[mangaId];
     if (!chapters) {
-      const data = await getJson(`/api/manga/${mangaId}/chapters`);
+      const data = await getJson(`/api/manga/${encodeURIComponent(mangaId)}/chapters`);
       chapters = data.chapters;
       window.__chapterCache = window.__chapterCache || {};
       window.__chapterCache[mangaId] = chapters;
     }
-    const { pages } = await getJson(`/api/chapter/${chapterId}/pages`);
+    let manga = window.__mangaCache?.[mangaId];
+    if (!manga) {
+      manga = await getJson(`/api/manga/${encodeURIComponent(mangaId)}`).catch(() => ({
+        id: mangaId,
+        title: 'مانجا',
+        cover: null,
+      }));
+      window.__mangaCache = window.__mangaCache || {};
+      window.__mangaCache[mangaId] = manga;
+    }
+    const { pages } = await getJson(`/api/chapter/${encodeURIComponent(chapterId)}/pages`);
     const i = parseInt(idx, 10);
+    const current = chapters[i];
     const prev = chapters[i - 1];
     const next = chapters[i + 1];
+    const goto = (c, at) =>
+      c ? `location.hash='#/read/${encodeURIComponent(c.id)}/${encodeURIComponent(mangaId)}/${at}'` : '';
+
     app.innerHTML = `
-      <a class="backlink" href="#/manga/${mangaId}">&rarr; الفصل ${chapters[i]?.chapter ?? ''}</a>
-      <div class="reader">
-        ${pages.map((p) => `<img src="${p}" loading="lazy" referrerpolicy="no-referrer" />`).join('')}
+      <div class="reader-head">
+        <a class="backlink" href="#/manga/${encodeURIComponent(mangaId)}">&rarr; ${escapeHtml(manga.title || '')}</a>
+        <span class="reader-chip">الفصل ${escapeHtml(String(current?.chapter ?? '؟'))} · ${pages.length} صفحة</span>
       </div>
+      <div class="reader" id="reader">
+        ${pages
+          .map(
+            (p, n) =>
+              `<img src="${p}" loading="${n < 3 ? 'eager' : 'lazy'}" referrerpolicy="no-referrer" alt="صفحة ${n + 1}" />`
+          )
+          .join('')}
+      </div>
+      <div class="reader-end">
+        ${
+          next
+            ? `<button class="btn primary big" onclick="${goto(next, i + 1)}">الفصل التالي (${escapeHtml(
+                String(next.chapter ?? '')
+              )}) &larr;</button>`
+            : `<div class="empty" style="padding:20px 0">هذا آخر فصل متوفر حالياً.</div>`
+        }
+        <a class="btn" href="#/manga/${encodeURIComponent(mangaId)}">كل الفصول</a>
+      </div>
+      <div class="reader-progress"><span id="readerBar"></span></div>
       <div class="reader-bar">
-        <button class="btn primary" ${next ? '' : 'disabled'} onclick="location.hash='#/read/${next?.id}/${mangaId}/${i + 1}'">التالي &larr;</button>
-        <a class="btn" href="#/manga/${mangaId}">الفصول</a>
-        <button class="btn" ${prev ? '' : 'disabled'} onclick="location.hash='#/read/${prev?.id}/${mangaId}/${i - 1}'">&rarr; السابق</button>
+        <button class="btn primary" ${next ? '' : 'disabled'} onclick="${goto(next, i + 1)}">التالي &larr;</button>
+        <a class="btn" href="#/manga/${encodeURIComponent(mangaId)}">الفصول</a>
+        <button class="btn" ${prev ? '' : 'disabled'} onclick="${goto(prev, i - 1)}">&rarr; السابق</button>
       </div>
     `;
     window.scrollTo(0, 0);
+
+    if (current) {
+      setProgress(manga, current, i);
+      markRead(mangaId, current.id);
+    }
+
+    // شريط تقدّم القراءة داخل الفصل
+    const bar = document.getElementById('readerBar');
+    const onScroll = () => {
+      const h = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = `${h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0}%`;
+    };
+    window.removeEventListener('scroll', window.__readerScroll || (() => {}));
+    window.__readerScroll = onScroll;
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    // اختصارات لوحة المفاتيح (RTL: السهم الأيسر = التالي)
+    const onKey = (e) => {
+      if (e.key === 'ArrowLeft' && next) location.hash = `#/read/${encodeURIComponent(next.id)}/${encodeURIComponent(mangaId)}/${i + 1}`;
+      if (e.key === 'ArrowRight' && prev) location.hash = `#/read/${encodeURIComponent(prev.id)}/${encodeURIComponent(mangaId)}/${i - 1}`;
+    };
+    document.removeEventListener('keydown', window.__readerKey || (() => {}));
+    window.__readerKey = onKey;
+    document.addEventListener('keydown', onKey);
   } catch (e) {
     app.innerHTML = errorHtml('تعذّر تحميل هذا الفصل.', () => renderReader(chapterId, mangaId, idx));
   }
 }
 
-// Tabs for the browse page: "الكل" (paginated across the whole MangaDex ar
-// catalog) plus one tab per curated genre (fixed-size list, no pagination
-// needed). Keep this list of keys/labels/icons in sync with GENRES in
-// src/server.js if genres are added/removed there.
-const BROWSE_TABS = [
+// ---------------------------------------------------------------------------
+// مكتبتي (المفضلة + سجل القراءة) — كلها محلية على الجهاز
+// ---------------------------------------------------------------------------
+function renderLibrary() {
+  setActiveNav('library');
+  const favs = getFavs();
+  const history = Object.entries(getProgress())
+    .map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => b.at - a.at);
+  let html = `<h2 class="section">${icon('heartFill')} المفضلة (${favs.length})</h2>`;
+  html += favs.length
+    ? `<div class="grid">${favs.map((f) => cardHtml({ ...f, source: f.id.startsWith('asq:') ? 'asq' : 'md' })).join('')}</div>`
+    : `<div class="empty">لم تُضف أي مانجا للمفضلة بعد — افتح أي مانجا واضغط "أضف للمفضلة".</div>`;
+  html += `<h2 class="section">${icon('clock')} سجل القراءة</h2>`;
+  html += history.length
+    ? `<div class="chapters">${history
+        .map(
+          (p) => `<a class="chapter-row" href="#/read/${encodeURIComponent(p.chapterId)}/${encodeURIComponent(p.id)}/${p.idx}">
+            <span><span class="ch-title">${escapeHtml(p.title)}</span>
+            <span class="ch-group">الفصل ${escapeHtml(String(p.chapter ?? '؟'))}</span></span>
+            <span class="date">${new Date(p.at).toLocaleDateString('ar')}</span>
+          </a>`
+        )
+        .join('')}</div>
+       <div style="text-align:center;padding:18px"><button class="btn" id="clearHist">امسح السجل</button></div>`
+    : `<div class="empty">لا يوجد سجل قراءة بعد.</div>`;
+  app.innerHTML = html;
+  document.getElementById('clearHist')?.addEventListener('click', () => {
+    save(STORE.progress, {});
+    renderLibrary();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// التصفّح: مصدران + ترتيب + تصنيفات
+// ---------------------------------------------------------------------------
+const ASQ_GENRES = [
+  { key: 'action', label: 'أكشن' },
+  { key: 'romance', label: 'رومانسي' },
+  { key: 'fantasy', label: 'خيال' },
+  { key: 'comedy', label: 'كوميدي' },
+  { key: 'drama', label: 'دراما' },
+  { key: 'adventure', label: 'مغامرة' },
+  { key: 'horror', label: 'رعب' },
+  { key: 'school', label: 'مدرسي' },
+];
+
+// تبويبات مصدر MangaDex — يجب أن تبقى متوافقة مع GENRES في src/server.js
+const MD_TABS = [
   { key: 'all', label: 'الكل', icon: 'grid' },
   { key: 'action', label: 'أكشن', icon: 'sword' },
   { key: 'romance', label: 'رومانسي', icon: 'heart' },
@@ -340,72 +643,151 @@ function paginationHtml(page, totalPages) {
   `;
 }
 
-async function loadAllPage(body, page) {
+// ترقيم بسيط عندما لا يعرف المصدر العدد الكلي للصفحات (حالة 3asq)
+function simplePaginationHtml(page, hasNext) {
+  return `
+    <div class="pagination">
+      <button class="btn page-btn" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>← السابق</button>
+      <span class="page-ellipsis">صفحة ${page}</span>
+      <button class="btn page-btn" data-page="${page + 1}" ${hasNext ? '' : 'disabled'}>التالي →</button>
+    </div>`;
+}
+
+function bindPageButtons(body, handler) {
+  body.querySelectorAll('.page-btn:not([disabled])').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handler(parseInt(btn.dataset.page, 10));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+}
+
+async function loadAsqPage(body, { order, genre, page }) {
+  body.innerHTML = skeletonGrid(21);
+  try {
+    const qs = new URLSearchParams({ source: 'asq', page: String(page), order });
+    if (genre) qs.set('genre', genre);
+    const data = await getJson(`/api/browse?${qs}`);
+    body.innerHTML = `
+      <div class="grid">${data.items.map(cardHtml).join('')}</div>
+      ${simplePaginationHtml(data.page, data.hasNext)}
+    `;
+    bindPageButtons(body, (p) => loadAsqPage(body, { order, genre, page: p }));
+  } catch (e) {
+    body.innerHTML = errorHtml('تعذّر التحميل من مانجا العاشق، حاول مجدداً.', () =>
+      loadAsqPage(body, { order, genre, page })
+    );
+  }
+}
+
+async function loadMdAllPage(body, page) {
   body.innerHTML = skeletonGrid(24);
   try {
-    const data = await getJson(`/api/browse?page=${page}`);
+    const data = await getJson(`/api/browse?source=md&page=${page}`);
     if (data.indexing) {
-      body.innerHTML = `<div class="loading"><div class="spinner"></div>جارِ فهرسة الكتالوج الكامل (~700+ مانجا)، ثوانٍ معدودة…</div>`;
-      setTimeout(() => loadAllPage(body, page), 3000);
+      body.innerHTML = `<div class="loading"><div class="spinner"></div>جارِ فهرسة كتالوج MangaDex العربي الكامل (~700+ مانجا)، ثوانٍ معدودة…</div>`;
+      setTimeout(() => loadMdAllPage(body, page), 3000);
       return;
     }
     body.innerHTML = `
-      <div class="empty" style="text-align:${document.dir === 'rtl' ? 'right' : 'left'};padding:0 2px 14px">
-        عرض ${data.items.length} من أصل <b>${data.total}</b> مانجا عربية متوفرة على MangaDex — صفحة ${data.page} من ${data.totalPages}
+      <div class="browse-note">
+        عرض ${data.items.length} من أصل <b>${data.total}</b> مانجا عربية على MangaDex — صفحة ${data.page} من ${data.totalPages}
       </div>
       <div class="grid">${data.items.map(cardHtml).join('')}</div>
       ${paginationHtml(data.page, data.totalPages)}
     `;
-    body.querySelectorAll('.page-btn:not([disabled])').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        loadAllPage(body, parseInt(btn.dataset.page, 10));
-        body.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
+    bindPageButtons(body, (p) => loadMdAllPage(body, p));
   } catch (e) {
-    body.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => loadAllPage(body, page));
+    body.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => loadMdAllPage(body, page));
   }
 }
 
-async function renderBrowse(activeTab = 'all') {
-  const tabsHtml = BROWSE_TABS.map(
-    (t) => `<button class="tab ${t.key === activeTab ? 'active' : ''}" data-tab="${t.key}">${icon(t.icon)}${t.label}</button>`
-  ).join('');
+// route: #/browse/{asq|md}/{latest|popular|genre-KEY|md tab key}
+async function renderBrowse(source = 'asq', view = '') {
+  setActiveNav('browse');
+  const isAsq = source !== 'md';
+  const asqOrder = view === 'popular' ? 'popular' : 'latest';
+  const asqGenre = view.startsWith('genre-') ? view.slice(6) : null;
 
-  app.innerHTML = `
-    <div class="tabs">${tabsHtml}</div>
-    <div id="browseBody">${skeletonGrid(18)}</div>
-  `;
+  const sourceTabs = `
+    <div class="source-switch">
+      <button class="src-tab ${isAsq ? 'active' : ''}" data-src="asq">مانجا العاشق</button>
+      <button class="src-tab ${!isAsq ? 'active' : ''}" data-src="md">MangaDex</button>
+    </div>`;
 
-  document.querySelectorAll('.tab').forEach((btn) => {
+  const asqTabs = `
+    <div class="tabs">
+      <button class="tab ${!asqGenre && asqOrder === 'latest' ? 'active' : ''}" data-view="latest">${icon('sparkle')}آخر التحديثات</button>
+      <button class="tab ${!asqGenre && asqOrder === 'popular' ? 'active' : ''}" data-view="popular">${icon('fire')}الأكثر شعبية</button>
+      ${ASQ_GENRES.map(
+        (g) =>
+          `<button class="tab ${asqGenre === g.key ? 'active' : ''}" data-view="genre-${g.key}">${icon(
+            genreIconName(g.key)
+          )}${g.label}</button>`
+      ).join('')}
+    </div>`;
+
+  const mdTabs = `
+    <div class="tabs">
+      ${MD_TABS.map(
+        (t) =>
+          `<button class="tab ${(view || 'all') === t.key ? 'active' : ''}" data-view="${t.key}">${icon(t.icon)}${t.label}</button>`
+      ).join('')}
+    </div>`;
+
+  app.innerHTML = `${sourceTabs}${isAsq ? asqTabs : mdTabs}<div id="browseBody">${skeletonGrid(18)}</div>`;
+
+  app.querySelectorAll('.src-tab').forEach((btn) =>
     btn.addEventListener('click', () => {
-      if (btn.dataset.tab !== activeTab) renderBrowse(btn.dataset.tab);
-    });
-  });
+      if (btn.dataset.src !== source) location.hash = `#/browse/${btn.dataset.src}`;
+    })
+  );
+  app.querySelectorAll('.tab').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      location.hash = `#/browse/${isAsq ? 'asq' : 'md'}/${btn.dataset.view}`;
+    })
+  );
 
   const body = document.getElementById('browseBody');
 
-  if (activeTab === 'all') {
-    await loadAllPage(body, 1);
-  } else {
-    try {
-      const data = await getJson(`/api/genre/${activeTab}`);
-      body.innerHTML = data.items.length
-        ? `<div class="grid">${data.items.map(cardHtml).join('')}</div>`
-        : `<div class="empty">لا توجد نتائج بالعربية في هذا القسم حالياً.</div>`;
-    } catch (e) {
-      body.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => renderBrowse(activeTab));
-    }
+  if (isAsq) {
+    const genreSlug = asqGenre
+      ? { school: 'school-life' }[asqGenre] || asqGenre
+      : null;
+    await loadAsqPage(body, { order: asqOrder, genre: genreSlug, page: 1 });
+    return;
   }
+  if (!view || view === 'all') {
+    await loadMdAllPage(body, 1);
+    return;
+  }
+  try {
+    const data = await getJson(`/api/genre/${view}`);
+    body.innerHTML = data.items.length
+      ? `<div class="grid">${data.items.map(cardHtml).join('')}</div>`
+      : `<div class="empty">لا توجد نتائج بالعربية في هذا القسم حالياً.</div>`;
+  } catch (e) {
+    body.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => renderBrowse(source, view));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// شريط التنقّل السفلي (شكل تطبيق الهاتف) + التوجيه
+// ---------------------------------------------------------------------------
+function setActiveNav(key) {
+  document.querySelectorAll('.bottom-nav a').forEach((a) => {
+    a.classList.toggle('active', a.dataset.nav === key);
+  });
 }
 
 function router() {
   const hash = location.hash.replace(/^#/, '') || '/';
-  const parts = hash.split('/').filter(Boolean);
+  const parts = hash.split('/').filter(Boolean).map(decodeURIComponent);
   if (parts.length === 0) return renderHome();
-  if (parts[0] === 'browse') return renderBrowse();
-  if (parts[0] === 'search' && parts[1]) return renderSearch(decodeURIComponent(parts[1]));
-  if (parts[0] === 'manga' && parts[1]) return renderManga(parts[1]);
+  if (parts[0] === 'browse') return renderBrowse(parts[1] || 'asq', parts[2] || '');
+  if (parts[0] === 'library') return renderLibrary();
+  if (parts[0] === 'search' && parts[1]) return renderSearch(parts[1]);
+  if (parts[0] === 'manga' && parts[1]) return renderManga(parts.slice(1).join('/'));
   if (parts[0] === 'read' && parts[1] && parts[2] && parts[3] !== undefined) {
     return renderReader(parts[1], parts[2], parts[3]);
   }

@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const asq = require('./sources/asq');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -132,6 +133,7 @@ function mapManga(m) {
     tags: (attrs.tags || []).map((t) => t.attributes?.name?.en).filter(Boolean),
     cover: coverUrl(m.id, coverRel?.attributes?.fileName),
     author: authorRel?.attributes?.name || null,
+    source: 'md',
   };
 }
 
@@ -281,27 +283,89 @@ async function buildHomePayload() {
   return { hero, popular: popularOk, latest: latestOk, genres };
 }
 
-app.get('/api/home', async (req, res) => {
-  try {
-    const fresh = homeCache.data && Date.now() - homeCache.t < HOME_CACHE_TTL_MS;
-    if (fresh) return res.json(homeCache.data);
-    if (!homeCache.inflight) {
-      homeCache.inflight = buildHomePayload()
-        .then((data) => {
-          homeCache = { data, t: Date.now(), inflight: null };
-          return data;
-        })
-        .catch((e) => {
-          homeCache.inflight = null;
-          throw e;
-        });
-    }
-    const data = await homeCache.inflight;
-    res.json(data);
-  } catch (e) {
-    console.error(e);
-    res.status(502).json({ error: 'failed to reach MangaDex' });
+// الصفحة الرئيسية الآن ثنائية المصدر: صفوف "مانجا العاشق" (3asq) أولاً لأنها
+// ترجمات عربية أصلية وأسرع تحديثاً، ثم صفوف MangaDex. فشل أحد المصدرين لا
+// يُسقط الصفحة كلها — نُرجع ما نجح فقط.
+async function buildAsqHome() {
+  const [latest, popular, genreRows] = await Promise.all([
+    asq.list({ order: 'latest', page: 1 }).catch(() => ({ items: [] })),
+    asq.list({ order: 'popular', page: 1 }).catch(() => ({ items: [] })),
+    Promise.all(
+      asq.GENRES.slice(0, 4).map((g) =>
+        asq.list({ genre: g.slug, page: 1 }).then((r) => r.items).catch(() => [])
+      )
+    ),
+  ]);
+  return {
+    latest: latest.items.slice(0, 18),
+    popular: popular.items.slice(0, 18),
+    genres: asq.GENRES.slice(0, 4)
+      .map((g, i) => ({ key: g.key, label: g.label, items: genreRows[i].slice(0, 18) }))
+      .filter((g) => g.items.length),
+  };
+}
+
+let asqHomeCache = { data: null, t: 0, inflight: null };
+const ASQ_HOME_TTL_MS = 10 * 60 * 1000;
+
+function cachedAsqHome() {
+  const fresh = asqHomeCache.data && Date.now() - asqHomeCache.t < ASQ_HOME_TTL_MS;
+  if (fresh) return Promise.resolve(asqHomeCache.data);
+  if (!asqHomeCache.inflight) {
+    asqHomeCache.inflight = buildAsqHome()
+      .then((data) => {
+        asqHomeCache = { data, t: Date.now(), inflight: null };
+        return data;
+      })
+      .catch((e) => {
+        asqHomeCache.inflight = null;
+        throw e;
+      });
   }
+  return asqHomeCache.inflight;
+}
+
+function cachedMdHome() {
+  const fresh = homeCache.data && Date.now() - homeCache.t < HOME_CACHE_TTL_MS;
+  if (fresh) return Promise.resolve(homeCache.data);
+  if (!homeCache.inflight) {
+    homeCache.inflight = buildHomePayload()
+      .then((data) => {
+        homeCache = { data, t: Date.now(), inflight: null };
+        return data;
+      })
+      .catch((e) => {
+        homeCache.inflight = null;
+        throw e;
+      });
+  }
+  return homeCache.inflight;
+}
+
+// /api/home يجمع المصدرين. أي مصدر يفشل يُرجع فارغاً بدل إسقاط الصفحة كلها
+// (3asq و MangaDex ينقطعان أحياناً بشكل مستقل).
+app.get('/api/home', async (req, res) => {
+  const [asqHome, mdHome] = await Promise.all([
+    cachedAsqHome().catch((e) => {
+      console.error('3asq home failed:', e.message);
+      return null;
+    }),
+    cachedMdHome().catch((e) => {
+      console.error('mangadex home failed:', e.message);
+      return null;
+    }),
+  ]);
+  if (!asqHome && !mdHome) return res.status(502).json({ error: 'both sources unreachable' });
+  const hero = (asqHome?.popular || []).slice(0, 6);
+  res.json({
+    hero: hero.length ? hero : mdHome?.hero || [],
+    asq: asqHome || { latest: [], popular: [], genres: [] },
+    md: mdHome || { popular: [], latest: [], genres: [] },
+    // مفاتيح قديمة للتوافق مع أي عميل لم يُحدَّث بعد
+    popular: mdHome?.popular || [],
+    latest: mdHome?.latest || [],
+    genres: mdHome?.genres || [],
+  });
 });
 
 // Full-catalog index: dzmanga's "الكل" tab is meant to show literally every
@@ -348,6 +412,21 @@ async function buildFullCatalog() {
 app.get('/api/browse', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const pageSize = 24;
+  // مصدر التصفح: `asq` (مانجا العاشق، افتراضي — ترجمة عربية أصلية وتصفح فوري)
+  // أو `md` (فهرس MangaDex العربي الكامل المبني في الخلفية).
+  if ((req.query.source || 'asq') === 'asq') {
+    try {
+      const order = ['latest', 'popular', 'trending', 'rating'].includes(req.query.order)
+        ? req.query.order
+        : 'latest';
+      const genre = req.query.genre || null;
+      const data = await asq.list({ order, page, genre });
+      return res.json({ items: data.items, page: data.page, hasNext: data.hasNext, source: 'asq' });
+    } catch (e) {
+      console.error('3asq browse failed:', e.message);
+      return res.status(502).json({ error: 'failed to load 3asq' });
+    }
+  }
   if (!fullCatalog.items.length) {
     // Index not ready yet (first ~30s after a restart) — kick off the build
     // and tell the client to retry shortly instead of blocking the request.
@@ -365,6 +444,17 @@ app.get('/api/browse', async (req, res) => {
 });
 
 app.get('/api/genre/:key', async (req, res) => {
+  if ((req.query.source || 'md') === 'asq') {
+    const g = asq.GENRES.find((x) => x.key === req.params.key);
+    if (!g) return res.status(404).json({ error: 'unknown genre' });
+    try {
+      const data = await asq.list({ genre: g.slug, page: Math.max(1, parseInt(req.query.page, 10) || 1) });
+      return res.json({ label: g.label, items: data.items, hasNext: data.hasNext });
+    } catch (e) {
+      console.error(e);
+      return res.status(502).json({ error: 'failed to load genre' });
+    }
+  }
   const genre = GENRES.find((g) => g.key === req.params.key);
   if (!genre) return res.status(404).json({ error: 'unknown genre' });
   try {
@@ -379,18 +469,33 @@ app.get('/api/genre/:key', async (req, res) => {
 app.get('/api/search', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.json({ results: [] });
-  try {
-    const url = `${MD_BASE}/manga?title=${encodeURIComponent(q)}&limit=24&includes[]=cover_art&includes[]=author&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=${LANG}`;
-    const data = await cachedFetchJson(url);
-    const results = await filterReadable(data.data.map(mapManga), 24);
-    res.json({ results });
-  } catch (e) {
-    console.error(e);
-    res.status(502).json({ error: 'search failed' });
-  }
+  // بحث موحّد في المصدرين: نتائج "مانجا العاشق" أولاً (عربية أصلية) ثم MangaDex.
+  const [asqResults, mdResults] = await Promise.all([
+    asq.search(q).catch((e) => {
+      console.error('3asq search failed:', e.message);
+      return [];
+    }),
+    (async () => {
+      const url = `${MD_BASE}/manga?title=${encodeURIComponent(q)}&limit=24&includes[]=cover_art&includes[]=author&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=${LANG}`;
+      const data = await cachedFetchJson(url);
+      return filterReadable(data.data.map(mapManga), 24);
+    })().catch((e) => {
+      console.error('mangadex search failed:', e.message);
+      return [];
+    }),
+  ]);
+  res.json({ results: [...asqResults, ...mdResults], asq: asqResults, md: mdResults });
 });
 
 app.get('/api/manga/:id', async (req, res) => {
+  if (req.params.id.startsWith('asq:')) {
+    try {
+      return res.json(await asq.detail(req.params.id.slice(4)));
+    } catch (e) {
+      console.error(e);
+      return res.status(502).json({ error: 'failed to load manga' });
+    }
+  }
   try {
     const url = `${MD_BASE}/manga/${req.params.id}?includes[]=cover_art&includes[]=author`;
     const data = await cachedFetchJson(url);
@@ -407,6 +512,15 @@ app.get('/api/manga/:id', async (req, res) => {
 });
 
 app.get('/api/manga/:id/chapters', async (req, res) => {
+  if (req.params.id.startsWith('asq:')) {
+    try {
+      const chapters = await asq.chapters(req.params.id.slice(4));
+      return res.json({ chapters });
+    } catch (e) {
+      console.error(e);
+      return res.status(502).json({ error: 'failed to load chapters' });
+    }
+  }
   try {
     let offset = 0;
     let all = [];
@@ -441,6 +555,17 @@ app.get('/api/manga/:id/chapters', async (req, res) => {
 });
 
 app.get('/api/chapter/:id/pages', async (req, res) => {
+  if (req.params.id.startsWith('asq:')) {
+    // شكل المعرّف: asq:<manga-slug>:<chapter-slug>
+    const [, slug, chapterSlug] = req.params.id.split(':');
+    try {
+      const pages = await asq.pages(slug, chapterSlug);
+      return res.json({ pages });
+    } catch (e) {
+      console.error(e);
+      return res.status(502).json({ error: 'failed to load chapter pages' });
+    }
+  }
   try {
     const data = await cachedFetchJson(`${MD_BASE}/at-home/server/${req.params.id}`);
     const { baseUrl, chapter } = data;
@@ -457,16 +582,24 @@ app.get('/api/chapter/:id/pages', async (req, res) => {
 // Image proxy: avoids client-side CORS/hotlink issues, keeps requests light via caching
 app.get('/img', async (req, res) => {
   const u = req.query.u;
-  if (!u || !(u.startsWith('https://') && u.includes('mangadex'))) {
+  const allowed = u && u.startsWith('https://') && (u.includes('mangadex') || asq.isAsqImage(u));
+  if (!allowed) {
     return res.status(400).send('bad url');
   }
   try {
     // Short timeout: during a network-level IP block the TLS handshake can
     // succeed but the response never arrives, which would otherwise hang
     // this request for a long time before falling back to the redirect.
+    const isAsq = asq.isAsqImage(u);
     const upstream = await fetch(u, {
-      headers: { 'User-Agent': 'dzmanga/1.0' },
-      signal: AbortSignal.timeout(6000),
+      headers: isAsq
+        ? {
+            'User-Agent':
+              'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+            Referer: `${asq.BASE}/`,
+          }
+        : { 'User-Agent': 'dzmanga/1.0' },
+      signal: AbortSignal.timeout(isAsq ? 15000 : 6000),
     });
     if (!upstream.ok) return res.status(upstream.status).end();
     res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
