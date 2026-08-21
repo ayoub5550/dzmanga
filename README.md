@@ -131,7 +131,7 @@ PORT=3090 node src/server.js
 
 **الإعلانات (مفعّلة 2026-08-21):**
 - شبكة **Adsterra** — حساب publishers.adsterra.com (login: `dzmanga`، إيميل
-  صاحب المشروع، الموقع site id 5998901). وحدة Native Banner id `30856951`.
+  صاحب المشروع، الموقع site id 5998901). وحدات: Native Banner `30856951` + Banner 300x250 (key ec1e95038134fd0c0769cd035e966576) + Banner 320x50 (key dcf2e11fac3a9544acd19ab8f8914202). البانرات الثابتة تُحقن داخل iframe مخصص (atOptions يستعمل document.write).
 - الحقن كله في `src/public/ads.js` (MutationObserver يعيد الحقن بعد كل
   إعادة رسم للـSPA في أول `.ad-slot`). الأماكن: الرئيسية بعد قسم "الأكثر
   شعبية" + صفحة المانجا تحت قائمة الفصول. القاعدة: بانرات فقط،

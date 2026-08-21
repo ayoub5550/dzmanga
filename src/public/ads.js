@@ -1,37 +1,62 @@
 // ---------------------------------------------------------------------------
-// dzmanga ads loader — Adsterra Native Banner (unit 30856951, "NativeBanner_1").
-// Account: publishers.adsterra.com (login dzmanga / owner's email). Managed
-// via the Adsterra dashboard; policy: banners only — NO popunders/redirects/
-// push (they destroy reader trust). Placement: .ad-slot divs that app.js
-// renders on the homepage (after "الأكثر شعبية") and on the manga page
-// (under the chapter list). Never inside the reader between pages.
-//
-// How it works: Adsterra's invoke.js fills <div id="container-<hash>">.
-// The SPA re-renders views, wiping the container, so a MutationObserver
-// re-injects it into the first empty .ad-slot after each render. Only one
-// container per page (duplicate ids won't be filled).
+// dzmanga ads loader — Adsterra (account: publishers.adsterra.com, site 5998901).
+// Units:
+//   - Native Banner  30856951  key 108f270368660f9e4886a769d98415fe (invoke.js + container div)
+//   - Banner 300x250 key ec1e95038134fd0c0769cd035e966576 (atOptions iframe format)
+//   - Banner 320x50  key dcf2e11fac3a9544acd19ab8f8914202 (atOptions iframe format)
+// Policy: banners only — NO popunders/push/redirects. Never inside the reader.
+// Slots are <div class="ad-slot" data-ad="native|banner"> rendered by app.js:
+//   home → native (after "الأكثر شعبية"), manga page → banner (under chapters).
+// SPA re-renders wipe the DOM, so a MutationObserver on #app re-injects.
+// atOptions snippets use document.write → must run inside a dedicated iframe
+// (they'd wipe the page if run after load in the main document).
 // ---------------------------------------------------------------------------
 (function () {
-  const HASH = '108f270368660f9e4886a769d98415fe';
-  const SRC = 'https://pl30957450.effectivecpmnetwork.com/' + HASH + '/invoke.js';
+  const NATIVE = '108f270368660f9e4886a769d98415fe';
+  const BANNERS = {
+    desktop: { key: 'ec1e95038134fd0c0769cd035e966576', w: 300, h: 250 },
+    mobile: { key: 'dcf2e11fac3a9544acd19ab8f8914202', w: 320, h: 50 },
+  };
   let debounceTimer = null;
 
-  function inject() {
-    const slot = document.querySelector('.ad-slot');
-    if (!slot || slot.dataset.filled) return;
-    // remove any stale container elsewhere (SPA nav leftovers)
-    document.querySelectorAll('#container-' + HASH).forEach((el) => el.remove());
-    document.querySelectorAll('script[data-dz-ad]').forEach((el) => el.remove());
-    slot.dataset.filled = '1';
+  function injectNative(slot) {
+    document.querySelectorAll('#container-' + NATIVE).forEach((el) => el.remove());
+    document.querySelectorAll('script[data-dz-ad="native"]').forEach((el) => el.remove());
     const box = document.createElement('div');
-    box.id = 'container-' + HASH;
+    box.id = 'container-' + NATIVE;
     slot.appendChild(box);
     const s = document.createElement('script');
     s.async = true;
     s.setAttribute('data-cfasync', 'false');
-    s.setAttribute('data-dz-ad', '1');
-    s.src = SRC;
+    s.setAttribute('data-dz-ad', 'native');
+    s.src = 'https://pl30957450.effectivecpmnetwork.com/' + NATIVE + '/invoke.js';
     slot.appendChild(s);
+  }
+
+  function injectBanner(slot) {
+    const cfg = window.innerWidth <= 520 ? BANNERS.mobile : BANNERS.desktop;
+    const f = document.createElement('iframe');
+    f.width = cfg.w; f.height = cfg.h;
+    f.style.cssText = 'border:0;display:block;margin:0 auto;overflow:hidden';
+    f.setAttribute('scrolling', 'no');
+    slot.appendChild(f);
+    const doc = f.contentWindow.document;
+    doc.open();
+    doc.write('<!DOCTYPE html><html><head><base target="_top"></head><body style="margin:0">' +
+      '<scr' + 'ipt>atOptions={"key":"' + cfg.key + '","format":"iframe","height":' + cfg.h +
+      ',"width":' + cfg.w + ',"params":{}};</scr' + 'ipt>' +
+      '<scr' + 'ipt src="https://www.highperformanceformat.com/' + cfg.key + '/invoke.js"></scr' + 'ipt>' +
+      '</body></html>');
+    doc.close();
+  }
+
+  function inject() {
+    document.querySelectorAll('.ad-slot').forEach((slot) => {
+      if (slot.dataset.filled) return;
+      slot.dataset.filled = '1';
+      if (slot.dataset.ad === 'banner') injectBanner(slot);
+      else injectNative(slot);
+    });
   }
 
   function schedule() {
