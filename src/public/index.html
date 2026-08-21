@@ -228,6 +228,15 @@
   main{padding-bottom:86px}
   .reader-bar{bottom:56px}
 
+  /* وضع القراءة الأفقي (صفحة-صفحة، تمرير أفقي بالسحب) */
+  .reader.horiz{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;padding:12px 0 100px;gap:0}
+  .reader.horiz img{width:100vw;max-width:100vw;height:auto;max-height:82vh;object-fit:contain;
+    flex:0 0 100vw;scroll-snap-align:center}
+  .reader.horiz::-webkit-scrollbar{display:none}
+  .mode-toggle{background:var(--card);border:1px solid #25322a;color:var(--muted);border-radius:999px;
+    padding:5px 12px;font-size:12.5px;font-family:inherit;cursor:pointer}
+  .mode-toggle:hover{color:var(--text);border-color:#3a4b40}
   /* إشعار عابر */
   .dz-toast{position:fixed;bottom:86px;left:50%;transform:translate(-50%,14px);opacity:0;
     background:rgba(23,31,26,.96);border:1px solid #2b3a31;color:var(--text);padding:9px 16px;

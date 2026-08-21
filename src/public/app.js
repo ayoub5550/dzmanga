@@ -40,6 +40,7 @@ const STORE = {
   progress: 'dz_progress_v1', // mangaId -> { chapterId, chapter, idx, title, cover, at }
   read: 'dz_read_v1', // mangaId -> [chapterId, ...]
   favs: 'dz_favs_v1', // [{ id, title, cover, at }]
+  mode: 'dz_mode_v1', // 'vert' | 'horiz' — وضع القراءة
   scroll: 'dz_scroll_v1', // chapterId -> scrollY (استئناف داخل الفصل)
 };
 
@@ -70,6 +71,7 @@ function saveScroll(chapterId, y) {
     save(STORE.scroll, all);
   }, 400);
 }
+const readMode = () => load(STORE.mode, 'vert');
 const getScroll = (chapterId) => load(STORE.scroll, {})[chapterId] || 0;
 
 // إشعار صغير عابر
@@ -562,6 +564,7 @@ async function renderReader(chapterId, mangaId, idx) {
     app.innerHTML = `
       <div class="reader-head">
         <a class="backlink" href="#/manga/${encodeURIComponent(mangaId)}">&rarr; ${escapeHtml(manga.title || '')}</a>
+        <button class="mode-toggle" id="modeToggle" type="button">${readMode() === 'horiz' ? 'وضع أفقي' : 'وضع رأسي'}</button>
         <span class="reader-chip">الفصل ${escapeHtml(String(current?.chapter ?? '؟'))} · <span id="pageNow">1</span>/${pages.length}</span>
       </div>
       ${broken || !pages.length
@@ -569,7 +572,7 @@ async function renderReader(chapterId, mangaId, idx) {
             next ? ' جرّب الفصل التالي.' : ''
           }</div>`
         : ''}
-      <div class="reader" id="reader">
+      <div class="reader${readMode() === 'horiz' ? ' horiz' : ''}" id="reader">
         ${pages
           .map(
             (p, n) =>
@@ -633,12 +636,32 @@ async function renderReader(chapterId, mangaId, idx) {
     window.__readerScroll = onScroll;
     window.addEventListener('scroll', onScroll, { passive: true });
     // استئناف الموضع داخل نفس الفصل إن رجع إليه المستخدم
-    const savedY = getScroll(chapterId);
+    const savedY = readMode() === 'horiz' ? 0 : getScroll(chapterId);
     if (savedY > 100) {
       requestAnimationFrame(() => window.scrollTo(0, savedY));
       toast('استأنفنا من حيث توقّفت');
     }
     onScroll();
+
+    // تبديل وضع القراءة (رأسي/أفقي) — يُحفظ ويبقى للفصول القادمة
+    const modeBtn = document.getElementById('modeToggle');
+    modeBtn?.addEventListener('click', () => {
+      const nextMode = readMode() === 'horiz' ? 'vert' : 'horiz';
+      save(STORE.mode, nextMode);
+      renderReader(chapterId, mangaId, idx);
+      toast(nextMode === 'horiz' ? 'وضع القراءة: أفقي' : 'وضع القراءة: رأسي');
+    });
+
+    // في الوضع الأفقي التقدّم يُقاس بالتمرير الأفقي داخل الحاوية
+    if (readMode() === 'horiz') {
+      const rd = document.getElementById('reader');
+      rd.addEventListener('scroll', () => {
+        const max = rd.scrollWidth - rd.clientWidth;
+        const done = max > 0 ? Math.min(1, Math.abs(rd.scrollLeft) / max) : 0;
+        bar.style.width = `${done * 100}%`;
+        if (counter) counter.textContent = String(Math.min(imgs.length, Math.round(done * (imgs.length - 1)) + 1));
+      }, { passive: true });
+    }
 
     // تحديث العدّاد بعد اكتمال تحميل كل صورة (المواضع تتغيّر مع الارتفاعات)
     imgs.forEach((im) => im.addEventListener('load', () => onScroll(), { once: true }));
@@ -665,6 +688,7 @@ async function renderReader(chapterId, mangaId, idx) {
     // مناطق نقر على الحواف: يمين = السابق، يسار = التالي (اتجاه عربي)
     const reader = document.getElementById('reader');
     reader.addEventListener('click', (e) => {
+      if (readMode() === 'horiz') return; // السحب هو وسيلة التنقّل هناك
       const x = e.clientX / window.innerWidth;
       if (x > 0.85 && prev) location.hash = `#/read/${encodeURIComponent(prev.id)}/${encodeURIComponent(mangaId)}/${i - 1}`;
       else if (x < 0.15 && next) location.hash = `#/read/${encodeURIComponent(next.id)}/${encodeURIComponent(mangaId)}/${i + 1}`;
