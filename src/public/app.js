@@ -502,6 +502,7 @@ async function renderManga(id) {
             <button class="btn fav-btn" id="favBtn">${icon(isFav(manga.id) ? 'heartFill' : 'heart')} ${
               isFav(manga.id) ? 'في المفضلة' : 'أضف للمفضلة'
             }</button>
+            <button class="btn" id="shareBtn">مشاركة ⤴</button>
           </div>
         </div>
       </div>
@@ -519,6 +520,22 @@ async function renderManga(id) {
     document.getElementById('favBtn')?.addEventListener('click', (e) => {
       const nowFav = toggleFav(manga);
       e.currentTarget.innerHTML = `${icon(nowFav ? 'heartFill' : 'heart')} ${nowFav ? 'في المفضلة' : 'أضف للمفضلة'}`;
+    });
+    document.getElementById('shareBtn')?.addEventListener('click', async (e) => {
+      // pretty crawlable URL (server renders real OG tags for it) — not the #/hash one
+      const shareUrl = `${location.origin}/manga/${encodeURIComponent(manga.id)}`;
+      try {
+        if (navigator.share) return void (await navigator.share({ title: manga.title, url: shareUrl }));
+        await navigator.clipboard.writeText(shareUrl);
+      } catch {
+        // clipboard API needs a secure context — legacy fallback
+        const ta = document.createElement('textarea');
+        ta.value = shareUrl; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch {}
+        ta.remove();
+      }
+      e.currentTarget.textContent = 'نُسخ الرابط ✓';
+      setTimeout(() => { const b = document.getElementById('shareBtn'); if (b) b.textContent = 'مشاركة ⤴'; }, 1800);
     });
     window.__mangaCache = window.__mangaCache || {};
     window.__mangaCache[manga.id] = manga;
