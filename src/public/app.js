@@ -640,6 +640,9 @@ async function renderReader(chapterId, mangaId, idx) {
     }
     onScroll();
 
+    // تحديث العدّاد بعد اكتمال تحميل كل صورة (المواضع تتغيّر مع الارتفاعات)
+    imgs.forEach((im) => im.addEventListener('load', () => onScroll(), { once: true }));
+
     // إعادة محاولة تلقائية لأي صفحة فشلت صورتها (مصدر 3asq يتعثّر أحياناً)
     imgs.forEach((im) => {
       im.addEventListener('error', () => {
