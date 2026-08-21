@@ -1,4 +1,5 @@
 const express = require('express');
+const zlib = require('zlib');
 const path = require('path');
 const asq = require('./sources/asq');
 
@@ -20,7 +21,33 @@ const GENRES = [
   { key: 'horror', label: 'رعب', tagId: 'cdad7e68-1419-41dd-bdce-27753074a640' },
 ];
 
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+// ---------------------------------------------------------------------------
+// ضغط gzip يدوي (بدون حزم إضافية — راجع AGENTS.md: نبقى خفيفين).
+// يضغط ردود JSON/JS/CSS/HTML فقط، والصور تُترك كما هي (مضغوطة أصلاً).
+// ---------------------------------------------------------------------------
+const COMPRESSIBLE = /json|javascript|text\/|svg/;
+app.use((req, res, next) => {
+  const accepts = String(req.headers['accept-encoding'] || '').includes('gzip');
+  if (!accepts) return next();
+  const send = res.send.bind(res);
+  res.send = (body) => {
+    try {
+      const type = String(res.get('Content-Type') || '');
+      const buf = Buffer.isBuffer(body) ? body : typeof body === 'string' ? Buffer.from(body) : null;
+      if (!buf || buf.length < 1024 || !COMPRESSIBLE.test(type) || res.get('Content-Encoding')) return send(body);
+      const gz = zlib.gzipSync(buf, { level: 6 });
+      res.set('Content-Encoding', 'gzip');
+      res.set('Vary', 'Accept-Encoding');
+      res.removeHeader('Content-Length');
+      return send(gz);
+    } catch (e) {
+      return send(body);
+    }
+  };
+  next();
+});
+
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: true }));
 app.use(express.json());
 
 // simple in-memory cache to keep things fast + light on MangaDex rate limits
@@ -603,7 +630,7 @@ app.get('/img', async (req, res) => {
     });
     if (!upstream.ok) return res.status(upstream.status).end();
     res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Cache-Control', 'public, max-age=604800, immutable');
     const buf = Buffer.from(await upstream.arrayBuffer());
     res.send(buf);
   } catch (e) {

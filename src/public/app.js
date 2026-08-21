@@ -40,6 +40,7 @@ const STORE = {
   progress: 'dz_progress_v1', // mangaId -> { chapterId, chapter, idx, title, cover, at }
   read: 'dz_read_v1', // mangaId -> [chapterId, ...]
   favs: 'dz_favs_v1', // [{ id, title, cover, at }]
+  scroll: 'dz_scroll_v1', // chapterId -> scrollY (استئناف داخل الفصل)
 };
 
 function load(key, fallback) {
@@ -55,6 +56,35 @@ function save(key, value) {
   } catch (e) {
     /* الحصة ممتلئة أو التخزين معطّل — لا نُسقط الواجهة لأجل ذلك */
   }
+}
+
+// حفظ موضع التمرير داخل الفصل (مع تحديد الحجم حتى لا ينتفخ التخزين)
+let scrollTimer = null;
+function saveScroll(chapterId, y) {
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => {
+    const all = load(STORE.scroll, {});
+    all[chapterId] = Math.round(y);
+    const keys = Object.keys(all);
+    if (keys.length > 80) delete all[keys[0]];
+    save(STORE.scroll, all);
+  }, 400);
+}
+const getScroll = (chapterId) => load(STORE.scroll, {})[chapterId] || 0;
+
+// إشعار صغير عابر
+function toast(msg) {
+  let el = document.getElementById('dzToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'dzToast';
+    el.className = 'dz-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(window.__toastT);
+  window.__toastT = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
 const getProgress = () => load(STORE.progress, {});
@@ -100,10 +130,38 @@ function escapeHtml(s) {
   }[c]));
 }
 
-async function getJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('request failed');
-  return res.json();
+// كاش ذاكرة + إلغاء تكرار الطلبات المتزامنة: الرجوع للخلف أو إعادة فتح صفحة
+// يصبح فورياً بدل انتظار الشبكة من جديد.
+const JSON_CACHE = new Map(); // url -> { t, data }
+const JSON_INFLIGHT = new Map(); // url -> Promise
+const JSON_TTL_MS = 5 * 60 * 1000;
+
+async function getJson(url, { fresh = false } = {}) {
+  const hit = JSON_CACHE.get(url);
+  if (!fresh && hit && Date.now() - hit.t < JSON_TTL_MS) return hit.data;
+  if (JSON_INFLIGHT.has(url)) return JSON_INFLIGHT.get(url);
+  const p = (async () => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('request failed');
+    const data = await res.json();
+    JSON_CACHE.set(url, { t: Date.now(), data });
+    if (JSON_CACHE.size > 120) JSON_CACHE.delete(JSON_CACHE.keys().next().value);
+    return data;
+  })().finally(() => JSON_INFLIGHT.delete(url));
+  JSON_INFLIGHT.set(url, p);
+  return p;
+}
+
+// تحميل مسبق صامت (لا يرمي أخطاء) — يُستعمل لتجهيز الفصل التالي مسبقاً.
+function prefetchJson(url) {
+  getJson(url).catch(() => {});
+}
+function preloadImages(urls) {
+  urls.forEach((u) => {
+    const im = new Image();
+    im.referrerPolicy = 'no-referrer';
+    im.src = u;
+  });
 }
 
 const PLACEHOLDER = 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
@@ -504,13 +562,13 @@ async function renderReader(chapterId, mangaId, idx) {
     app.innerHTML = `
       <div class="reader-head">
         <a class="backlink" href="#/manga/${encodeURIComponent(mangaId)}">&rarr; ${escapeHtml(manga.title || '')}</a>
-        <span class="reader-chip">الفصل ${escapeHtml(String(current?.chapter ?? '؟'))} · ${pages.length} صفحة</span>
+        <span class="reader-chip">الفصل ${escapeHtml(String(current?.chapter ?? '؟'))} · <span id="pageNow">1</span>/${pages.length}</span>
       </div>
       <div class="reader" id="reader">
         ${pages
           .map(
             (p, n) =>
-              `<img src="${p}" loading="${n < 3 ? 'eager' : 'lazy'}" referrerpolicy="no-referrer" alt="صفحة ${n + 1}" />`
+              `<img src="${p}" loading="${n < 3 ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${n < 2 ? 'high' : 'auto'}" referrerpolicy="no-referrer" alt="صفحة ${n + 1}" />`
           )
           .join('')}
       </div>
@@ -540,14 +598,50 @@ async function renderReader(chapterId, mangaId, idx) {
 
     // شريط تقدّم القراءة داخل الفصل
     const bar = document.getElementById('readerBar');
+    const counter = document.getElementById('pageNow');
+    const imgs = Array.from(document.querySelectorAll('#reader img'));
+    let prefetched = false;
     const onScroll = () => {
       const h = document.documentElement.scrollHeight - window.innerHeight;
-      bar.style.width = `${h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0}%`;
+      const ratio = h > 0 ? Math.min(1, window.scrollY / h) : 0;
+      bar.style.width = `${ratio * 100}%`;
+      // رقم الصفحة الحالية = أول صورة ما زال أسفلها ظاهراً في الشاشة
+      if (counter) {
+        const mid = window.scrollY + window.innerHeight * 0.4;
+        let n = 1;
+        for (let k = 0; k < imgs.length; k++) {
+          if (imgs[k].offsetTop <= mid) n = k + 1; else break;
+        }
+        counter.textContent = String(n);
+      }
+      // حفظ موضع القراءة داخل الفصل (استئناف عند العودة)
+      saveScroll(chapterId, window.scrollY);
+      // تجهيز الفصل التالي مسبقاً بعد 55% من الفصل الحالي — الانتقال يصبح فورياً
+      if (!prefetched && ratio > 0.55 && next) {
+        prefetched = true;
+        getJson(`/api/chapter/${encodeURIComponent(next.id)}/pages`)
+          .then((d) => preloadImages((d.pages || []).slice(0, 3)))
+          .catch(() => {});
+      }
     };
     window.removeEventListener('scroll', window.__readerScroll || (() => {}));
     window.__readerScroll = onScroll;
     window.addEventListener('scroll', onScroll, { passive: true });
+    // استئناف الموضع داخل نفس الفصل إن رجع إليه المستخدم
+    const savedY = getScroll(chapterId);
+    if (savedY > 100) {
+      requestAnimationFrame(() => window.scrollTo(0, savedY));
+      toast('استأنفنا من حيث توقّفت');
+    }
     onScroll();
+
+    // مناطق نقر على الحواف: يمين = السابق، يسار = التالي (اتجاه عربي)
+    const reader = document.getElementById('reader');
+    reader.addEventListener('click', (e) => {
+      const x = e.clientX / window.innerWidth;
+      if (x > 0.85 && prev) location.hash = `#/read/${encodeURIComponent(prev.id)}/${encodeURIComponent(mangaId)}/${i - 1}`;
+      else if (x < 0.15 && next) location.hash = `#/read/${encodeURIComponent(next.id)}/${encodeURIComponent(mangaId)}/${i + 1}`;
+    });
 
     // اختصارات لوحة المفاتيح (RTL: السهم الأيسر = التالي)
     const onKey = (e) => {

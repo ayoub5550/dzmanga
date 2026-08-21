@@ -227,6 +227,22 @@
   .bottom-nav a .micon{width:21px;height:21px;color:inherit}
   main{padding-bottom:86px}
   .reader-bar{bottom:56px}
+
+  /* إشعار عابر */
+  .dz-toast{position:fixed;bottom:86px;left:50%;transform:translate(-50%,14px);opacity:0;
+    background:rgba(23,31,26,.96);border:1px solid #2b3a31;color:var(--text);padding:9px 16px;
+    border-radius:999px;font-size:13px;z-index:60;pointer-events:none;
+    box-shadow:0 10px 30px rgba(0,0,0,.45);transition:opacity .25s ease, transform .25s ease}
+  .dz-toast.show{opacity:1;transform:translate(-50%,0)}
+  /* انتقال ناعم بين الشاشات */
+  #app{animation:fadeUp .28s ease both}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .reader img{opacity:0;animation:imgIn .35s ease forwards}
+  @keyframes imgIn{to{opacity:1}}
+  @media (prefers-reduced-motion: reduce){
+    #app,.reader img{animation:none!important;opacity:1!important;transform:none!important}
+    .dz-toast{transition:none}
+  }
 </style>
 </head>
 <body>
@@ -257,5 +273,10 @@
   });
 </script>
 <script src="/app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+</script>
 </body>
 </html>
