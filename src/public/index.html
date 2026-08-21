@@ -25,16 +25,16 @@
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#151006">
+<meta name="theme-color" content="#0f1b4f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#151006; --bg2:#1a1408; --card:#221a0e; --text:#ffffff; --muted:#c9b586;
-    --accent:#f2c14e; --accent2:#d99a1f; --accent-grad: #f2c14e;
-    --line:color-mix(in srgb, #f2c14e 18%, transparent);
-    --line2:color-mix(in srgb, #f2c14e 34%, transparent);
+    --bg:#0f1b4f; --bg2:#13235c; --card:#1a2b6e; --text:#f6f3e8; --muted:#c3cdef;
+    --accent:#ee3517; --accent2:#c22508; --accent-grad: #ee3517;
+    --line:color-mix(in srgb, #dfe4f5 22%, transparent);
+    --line2:color-mix(in srgb, #dfe4f5 40%, transparent);
     --radius:0px;
   }
   *{box-sizing:border-box}
@@ -42,7 +42,7 @@
     font-family:"Cairo","Tahoma",-apple-system,sans-serif;}
   body{
     background-image:
-      radial-gradient(ellipse at top, color-mix(in srgb, #d9a835 14%, transparent) 0%, transparent 60%),
+      radial-gradient(ellipse at top, color-mix(in srgb, #2a49b8 26%, transparent) 0%, transparent 60%),
       repeating-conic-gradient(color-mix(in srgb, #d9a835 6%, transparent) 0% 25%, transparent 0% 50%);
     background-size:auto, 3px 3px;
     background-attachment:fixed;
@@ -277,7 +277,7 @@
   *{border-radius:0 !important}
   ::-webkit-scrollbar-thumb{background:var(--line2)}
   body{letter-spacing:.005em}
-  header{background:color-mix(in srgb,#151006 88%,transparent);border-bottom:1px solid var(--line)}
+  header{background:color-mix(in srgb,#0f1b4f 88%,transparent);border-bottom:1px solid var(--line)}
   header input{background:#05030033;border:1px solid var(--line);padding:11px 14px}
   header input:focus{border-color:var(--accent);box-shadow:none}
   .logo-badge{box-shadow:none;background:transparent;width:30px;height:30px}
@@ -301,33 +301,33 @@
   .btn{color:var(--text);font-weight:600;letter-spacing:.12em;font-size:12px;text-transform:uppercase;padding:11px 18px}
   .btn:hover{border-color:var(--accent)}
   .btn.primary,.tab.active,.src-tab.active,.hero-cta,.hero-badge,.card-chip.ch{
-    background:var(--accent);color:#151006;border:1px solid var(--accent);font-weight:700}
+    background:var(--accent);color:#ffffff;border:1px solid var(--accent);font-weight:700}
   .tab{letter-spacing:.1em;font-size:12px;color:var(--muted);text-transform:uppercase}
   .card-src.asq{background:#d31f14;color:#fff}
-  .card-src.md{background:#151006cc;color:var(--accent);border:1px solid var(--line2)}
-  .card-chip{background:#151006cc;color:var(--muted)}
-  .tag{background:transparent;border:1px solid var(--line);color:var(--accent)}
+  .card-src.md{background:#0f1b4fcc;color:#f6f3e8;border:1px solid var(--line2)}
+  .card-chip{background:#0f1b4fcc;color:var(--muted)}
+  .tag{background:transparent;border:1px solid var(--line);color:#e9e4d5}
   .volume-label,.cont-info .c,.bottom-nav a.active{color:var(--accent)}
-  .desc{color:#efeadb}
+  .desc{color:#eef1fa}
   .spinner{border-color:var(--line);border-top-color:var(--accent)}
-  .skeleton{background:linear-gradient(100deg,#221a0e 30%,#2a2110 50%,#221a0e 70%);background-size:200% 100%}
+  .skeleton{background:linear-gradient(100deg,#1a2b6e 30%,#22357e 50%,#1a2b6e 70%);background-size:200% 100%}
 
   .hero{border:1px solid var(--line)}
-  .hero-slide .fade{background:linear-gradient(0deg,#151006 6%,rgba(23,13,2,.45) 55%,rgba(23,13,2,.1) 100%),
-    linear-gradient(90deg,rgba(23,13,2,.65),transparent 60%)}
+  .hero-slide .fade{background:linear-gradient(0deg,#0f1b4f 6%,rgba(10,18,51,.45) 55%,rgba(10,18,51,.1) 100%),
+    linear-gradient(90deg,rgba(10,18,51,.65),transparent 60%)}
   .hero-badge{letter-spacing:.14em;text-transform:uppercase}
   .hero-cta{letter-spacing:.12em;text-transform:uppercase;font-size:12.5px}
   .hero-dots span{background:var(--line2)}
   .hero-dots span.active{background:var(--accent)}
 
-  .reader{background:#0a0703}
-  .reader-bar,.bottom-nav{background:color-mix(in srgb,#151006 94%,transparent);border-top:1px solid var(--line)}
+  .reader{background:#080f2e}
+  .reader-bar,.bottom-nav{background:color-mix(in srgb,#0f1b4f 94%,transparent);border-top:1px solid var(--line)}
   .reader-progress{background:var(--line)}
   .reader-progress span{background:var(--accent)}
   .bottom-nav a{letter-spacing:.06em}
   .backlink:hover{color:var(--accent)}
   .live-item{border-bottom:1px solid var(--line)}
-  .live-item:hover{background:#251d0f}
+  .live-item:hover{background:#1d3078}
   .mode-toggle{background:transparent;border:1px solid var(--line);color:var(--muted);letter-spacing:.08em}
   .mode-toggle:hover{color:var(--accent);border-color:var(--accent)}
   .source-switch{padding:4px}
