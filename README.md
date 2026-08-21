@@ -108,3 +108,28 @@ PORT=3090 node src/server.js
   (مثلاً استبعاد أي مانجا يعيدها `/api/manga/:id/chapters` بمصفوفة فارغة).
 - PWA كامل: يحتاج HTTPS أولاً (`sw.js` جاهز).
 - دعم "استكمال القراءة" في الصفحة الرئيسية.
+
+## تحديث 2026-08-21 (مساءً): SEO + بنية تحتية للنشر العام
+
+**على مستوى السيرفر (nginx — خارج هذا المستودع):**
+- `gzip_proxied any` في `/etc/nginx/conf.d/00-perf.conf` (nginx افتراضياً لا
+  يضغط الردود القادمة من proxy — كان `app.js` ينزل 44KB خاماً، الآن 12.6KB).
+- `http2 on` + رؤوس أمان (HSTS/nosniff/Referrer-Policy) في site conf.
+- `proxy_cache` باسم `dzimg` على `location /img` (2GB، أسبوع) — الصور المتكررة
+  تُخدم من قرص nginx مباشرة بدون المرور على Node أو المصدر.
+- بفضل HTTPS الآن: الـservice worker (`sw.js`) يعمل والتطبيق قابل للتثبيت PWA.
+
+**داخل التطبيق (SEO — لأن الـSPA بروابط hash غير قابلة للفهرسة):**
+- `GET /manga/:id` — رابط "جميل" قابل للفهرسة: يخدم `index.html` مع حقن
+  `<title>`/description/OG/JSON-LD الحقيقية للمانجا بين علامتي
+  `<!--SEO:START-->`/`<!--SEO:END-->` في `index.html`، وسكربت صغير يضبط
+  `location.hash` ليفتح الزائر البشري صفحة المانجا في التطبيق.
+- `GET /sitemap.xml` — يُبنى من `fullCatalog` + قوائم العاشق (كاش ساعة).
+- `GET /robots.txt` — يسمح بالكل ويشير للـsitemap ويمنع `/api/` و`/img`.
+- `PUBLIC_ORIGIN` قابل للتغيير عبر env عند تغيير الدومين.
+- `loadMangaDetail(id)` دالة مشتركة بين `/api/manga/:id` و`/manga/:id`.
+
+**الإعلانات (غير مفعّلة بعد):**
+- `src/public/ads.js` — stub موثّق: عند الحصول على حساب شبكة إعلانات يوضع
+  كود الحقن فيه (`window.DZ_ADS.enabled = true`). القاعدة: بانرات فقط،
+  **ممنوع popunder/redirect** — تدمر ثقة القراء.

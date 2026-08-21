@@ -514,24 +514,23 @@ app.get('/api/search', async (req, res) => {
   res.json({ results: [...asqResults, ...mdResults], asq: asqResults, md: mdResults });
 });
 
-app.get('/api/manga/:id', async (req, res) => {
-  if (req.params.id.startsWith('asq:')) {
-    try {
-      return res.json(await asq.detail(req.params.id.slice(4)));
-    } catch (e) {
-      console.error(e);
-      return res.status(502).json({ error: 'failed to load manga' });
-    }
+// Shared by /api/manga/:id (JSON for the SPA) and /manga/:id (SEO HTML for
+// crawlers) — keep the two in sync by loading through this single helper.
+async function loadMangaDetail(id) {
+  if (id.startsWith('asq:')) return asq.detail(id.slice(4));
+  const url = `${MD_BASE}/manga/${id}?includes[]=cover_art&includes[]=author`;
+  const data = await cachedFetchJson(url);
+  const manga = mapManga(data.data);
+  if (!manga.descriptionIsArabic && manga.description) {
+    manga.description = await translateDescriptionToArabic(manga.id, manga.description);
   }
+  delete manga.descriptionIsArabic;
+  return manga;
+}
+
+app.get('/api/manga/:id', async (req, res) => {
   try {
-    const url = `${MD_BASE}/manga/${req.params.id}?includes[]=cover_art&includes[]=author`;
-    const data = await cachedFetchJson(url);
-    const manga = mapManga(data.data);
-    if (!manga.descriptionIsArabic && manga.description) {
-      manga.description = await translateDescriptionToArabic(manga.id, manga.description);
-    }
-    delete manga.descriptionIsArabic;
-    res.json(manga);
+    res.json(await loadMangaDetail(req.params.id));
   } catch (e) {
     console.error(e);
     res.status(502).json({ error: 'failed to load manga' });
@@ -668,6 +667,98 @@ app.get('/img', async (req, res) => {
     res.set('Referrer-Policy', 'no-referrer');
     res.redirect(302, u);
   }
+});
+
+// ---------------------------------------------------------------------------
+// SEO layer (added 2026-08-21). The SPA is hash-routed (#/manga/...), which
+// search engines cannot index. So we expose crawlable "pretty" URLs:
+//   /manga/<id>  → serves index.html with that manga's real <title>/meta/OG
+//                  tags injected between the <!--SEO:START/END--> markers,
+//                  plus a tiny inline script that sets location.hash so the
+//                  SPA opens the right page for human visitors.
+//   /sitemap.xml → built from the in-memory fullCatalog + 3asq home lists.
+//   /robots.txt  → allows everything, points to the sitemap.
+// PUBLIC_ORIGIN can be overridden via env when the domain changes.
+// ---------------------------------------------------------------------------
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || 'https://www.dzmanga.dpdns.org';
+const INDEX_HTML = () => require('fs').readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+const escHtml = (s = '') => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const escXml = escHtml;
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /img\n\nSitemap: ${PUBLIC_ORIGIN}/sitemap.xml\n`);
+});
+
+let sitemapCache = { xml: '', t: 0 };
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    if (Date.now() - sitemapCache.t > 60 * 60 * 1000 || !sitemapCache.xml) {
+      const urls = new Map();
+      urls.set(`${PUBLIC_ORIGIN}/`, '1.0');
+      const asqHome = await cachedAsqHome().catch(() => null);
+      for (const list of [asqHome?.popular, asqHome?.latest]) {
+        for (const m of list || []) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.8');
+      }
+      for (const m of fullCatalog.items) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.6');
+      const body = [...urls.entries()]
+        .map(([loc, pr]) => `<url><loc>${escXml(loc)}</loc><priority>${pr}</priority></url>`)
+        .join('\n');
+      sitemapCache = {
+        xml: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>`,
+        t: Date.now(),
+      };
+    }
+    res.type('application/xml').send(sitemapCache.xml);
+  } catch (e) {
+    console.error('sitemap failed:', e.message);
+    res.status(500).type('text/plain').send('sitemap unavailable');
+  }
+});
+
+app.get('/manga/:id', async (req, res) => {
+  const id = req.params.id;
+  let html = INDEX_HTML();
+  try {
+    const m = await loadMangaDetail(id);
+    const title = `${m.title} — اقرأ بالعربية مجاناً | dzmanga`;
+    const desc = String(m.description || `اقرأ مانجا ${m.title} مترجمة للعربية مجاناً على dzmanga.`).slice(0, 300);
+    const pageUrl = `${PUBLIC_ORIGIN}/manga/${encodeURIComponent(id)}`;
+    const img = m.cover ? (m.cover.startsWith('http') ? m.cover : PUBLIC_ORIGIN + m.cover) : `${PUBLIC_ORIGIN}/icon-512.png`;
+    const ld = {
+      '@context': 'https://schema.org',
+      '@type': 'ComicSeries',
+      name: m.title,
+      url: pageUrl,
+      image: img,
+      inLanguage: 'ar',
+      ...(m.author ? { author: { '@type': 'Person', name: m.author } } : {}),
+      ...(m.description ? { description: desc } : {}),
+    };
+    const head = `
+<title>${escHtml(title)}</title>
+<meta name="description" content="${escHtml(desc)}" />
+<link rel="canonical" href="${escHtml(pageUrl)}" />
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="dzmanga" />
+<meta property="og:title" content="${escHtml(title)}" />
+<meta property="og:description" content="${escHtml(desc)}" />
+<meta property="og:url" content="${escHtml(pageUrl)}" />
+<meta property="og:image" content="${escHtml(img)}" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="${escHtml(title)}" />
+<meta name="twitter:description" content="${escHtml(desc)}" />
+<meta name="twitter:image" content="${escHtml(img)}" />
+<script type="application/ld+json">${JSON.stringify(ld)}</script>`;
+    html = html.replace(/<!--SEO:START-->[\s\S]*?<!--SEO:END-->/, `<!--SEO:START-->${head}\n<!--SEO:END-->`);
+  } catch (e) {
+    console.error('seo page failed for', id, e.message); // fall through: serve default head
+  }
+  // open the right SPA view for human visitors (bots just read the meta)
+  html = html.replace(
+    '</head>',
+    `<script>if(!location.hash)location.hash='#/manga/${encodeURIComponent(id).replace(/'/g, '')}';</script></head>`
+  );
+  res.set('Cache-Control', 'public, max-age=600').type('html').send(html);
 });
 
 app.get('*', (req, res) => {
