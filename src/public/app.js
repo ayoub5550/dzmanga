@@ -551,7 +551,7 @@ async function renderReader(chapterId, mangaId, idx) {
       window.__mangaCache = window.__mangaCache || {};
       window.__mangaCache[mangaId] = manga;
     }
-    const { pages } = await getJson(`/api/chapter/${encodeURIComponent(chapterId)}/pages`);
+    const { pages, broken } = await getJson(`/api/chapter/${encodeURIComponent(chapterId)}/pages`);
     const i = parseInt(idx, 10);
     const current = chapters[i];
     const prev = chapters[i - 1];
@@ -564,6 +564,11 @@ async function renderReader(chapterId, mangaId, idx) {
         <a class="backlink" href="#/manga/${encodeURIComponent(mangaId)}">&rarr; ${escapeHtml(manga.title || '')}</a>
         <span class="reader-chip">الفصل ${escapeHtml(String(current?.chapter ?? '؟'))} · <span id="pageNow">1</span>/${pages.length}</span>
       </div>
+      ${broken || !pages.length
+        ? `<div class="empty" style="margin:14px 0">صور هذا الفصل غير متوفرة على المصدر حالياً (رابط معطوب عندهم).${
+            next ? ' جرّب الفصل التالي.' : ''
+          }</div>`
+        : ''}
       <div class="reader" id="reader">
         ${pages
           .map(
@@ -642,6 +647,15 @@ async function renderReader(chapterId, mangaId, idx) {
         im.dataset.retried = '1';
         const base = im.src.split('&_r=')[0];
         setTimeout(() => { im.src = `${base}&_r=${Date.now()}`; }, 800);
+        im.addEventListener('error', () => {
+          im.replaceWith(
+            Object.assign(document.createElement('div'), {
+              className: 'empty',
+              style: 'margin:8px 0',
+              textContent: `تعذّر تحميل الصفحة ${im.alt.replace('صفحة ', '')} من المصدر`,
+            })
+          );
+        }, { once: true });
       });
     });
 

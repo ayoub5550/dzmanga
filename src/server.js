@@ -587,7 +587,21 @@ app.get('/api/chapter/:id/pages', async (req, res) => {
     const [, slug, chapterSlug] = req.params.id.split(':');
     try {
       const pages = await asq.pages(slug, chapterSlug);
-      return res.json({ pages });
+      // بعض الفصول القديمة على المصدر روابط صورها معطوبة (404) — نتحقق من أول
+      // صفحة فقط ونُعلم الواجهة، حتى تعرض رسالة واضحة بدل شاشة بيضاء.
+      let broken = false;
+      if (pages.length) {
+        try {
+          const first = decodeURIComponent(pages[0].split('u=')[1] || '');
+          const head = await fetch(first, {
+            method: 'HEAD',
+            headers: { 'User-Agent': 'Mozilla/5.0 Chrome/126', Referer: `${asq.BASE}/` },
+            signal: AbortSignal.timeout(6000),
+          });
+          broken = !head.ok;
+        } catch (e) { /* الشبكة تتعثر أحياناً — لا نعتبره فصلاً معطوباً */ }
+      }
+      return res.json({ pages, broken });
     } catch (e) {
       console.error(e);
       return res.status(502).json({ error: 'failed to load chapter pages' });
