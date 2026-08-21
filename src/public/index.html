@@ -9,23 +9,26 @@
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#0a0f0c">
+<meta name="theme-color" content="#170d02">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0f0c; --bg2:#101712; --card:#171f1a; --text:#eef2ef; --muted:#8a9a8f;
-    --accent:#8fe8bd; --accent2:#06384a; --accent-grad: linear-gradient(150deg, #8fe8bd, #06384a);
-    --radius:16px;
+    --bg:#170d02; --bg2:#1c1005; --card:#20140a; --text:#ffffff; --muted:#b09a78;
+    --accent:#ffac02; --accent2:#c98400; --accent-grad: #ffac02;
+    --line:color-mix(in srgb, #ffac02 18%, transparent);
+    --line2:color-mix(in srgb, #ffac02 34%, transparent);
+    --radius:0px;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
     font-family:"Cairo","Tahoma",-apple-system,sans-serif;}
   body{
     background-image:
-      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(143,232,189,.18), transparent 60%),
-      radial-gradient(ellipse 900px 600px at 100% 0%, rgba(6,56,74,.16), transparent 55%);
+      radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 7%, transparent) 0%, transparent 55%),
+      repeating-conic-gradient(color-mix(in srgb, var(--accent) 4%, transparent) 0% 25%, transparent 0% 50%);
+    background-size:auto, 3px 3px;
     background-attachment:fixed;
   }
   a{color:inherit;text-decoration:none}
@@ -253,6 +256,66 @@
     #app,.reader img{animation:none!important;opacity:1!important;transform:none!important}
     .dz-toast{transition:none}
   }
+
+  /* ================= HERMES-STYLE OVERRIDE (amber terminal) ================= */
+  *{border-radius:0 !important}
+  ::-webkit-scrollbar-thumb{background:var(--line2)}
+  body{letter-spacing:.005em}
+  header{background:color-mix(in srgb,#170d02 88%,transparent);border-bottom:1px solid var(--line)}
+  header input{background:#12090133;border:1px solid var(--line);padding:11px 14px}
+  header input:focus{border-color:var(--accent);box-shadow:none}
+  .logo-badge{box-shadow:none;background:transparent;width:30px;height:30px}
+  .logo-word{font-family:'Cairo',sans-serif;letter-spacing:.26em;font-size:15px;text-transform:uppercase}
+  .logo-word .manga{background:none;-webkit-text-fill-color:var(--accent);color:var(--accent)}
+  .logo-word .dz{color:var(--text)}
+  .logo-word .bar{background:var(--accent);height:2px;width:22px}
+
+  .card,.chapter-row,.cont-row .cont-card,.live-results,.tab,.btn,.reader-chip,.source-switch,.dz-toast,.card-chip{
+    background:var(--card);border:1px solid var(--line);box-shadow:none !important}
+  .card:hover,.chapter-row:hover,.cont-row .cont-card:hover{border-color:var(--line2);transform:none}
+  .card:hover{background:#26170b}
+  .card .title{font-weight:600;letter-spacing:0}
+  .card img{background:#1c1005}
+
+  h2.section{letter-spacing:.16em;font-size:13px;text-transform:uppercase;color:var(--muted);
+    border-bottom:1px solid var(--line);padding-bottom:8px}
+  h2.section .more{color:var(--accent);letter-spacing:.1em;font-size:11px}
+  .micon,h2.section .micon{color:var(--accent);filter:none}
+
+  .btn{color:var(--text);font-weight:600;letter-spacing:.12em;font-size:12px;text-transform:uppercase;padding:11px 18px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary,.tab.active,.src-tab.active,.hero-cta,.hero-badge,.card-chip.ch{
+    background:var(--accent);color:#170d02;border:1px solid var(--accent);font-weight:700}
+  .tab{letter-spacing:.1em;font-size:12px;color:var(--muted);text-transform:uppercase}
+  .card-src.asq{background:#a5300f;color:#fff}
+  .card-src.md{background:#170d02cc;color:var(--accent);border:1px solid var(--line2)}
+  .card-chip{background:#170d02cc;color:var(--muted)}
+  .tag{background:transparent;border:1px solid var(--line);color:var(--accent)}
+  .volume-label,.cont-info .c,.bottom-nav a.active{color:var(--accent)}
+  .desc{color:#e6dccb}
+  .spinner{border-color:var(--line);border-top-color:var(--accent)}
+  .skeleton{background:linear-gradient(100deg,#20140a 30%,#2a1a0c 50%,#20140a 70%);background-size:200% 100%}
+
+  .hero{border:1px solid var(--line)}
+  .hero-slide .fade{background:linear-gradient(0deg,#170d02 6%,rgba(23,13,2,.45) 55%,rgba(23,13,2,.1) 100%),
+    linear-gradient(90deg,rgba(23,13,2,.65),transparent 60%)}
+  .hero-badge{letter-spacing:.14em;text-transform:uppercase}
+  .hero-cta{letter-spacing:.12em;text-transform:uppercase;font-size:12.5px}
+  .hero-dots span{background:var(--line2)}
+  .hero-dots span.active{background:var(--accent)}
+
+  .reader{background:#0d0700}
+  .reader-bar,.bottom-nav{background:color-mix(in srgb,#170d02 94%,transparent);border-top:1px solid var(--line)}
+  .reader-progress{background:var(--line)}
+  .reader-progress span{background:var(--accent)}
+  .bottom-nav a{letter-spacing:.06em}
+  .backlink:hover{color:var(--accent)}
+  .live-item{border-bottom:1px solid var(--line)}
+  .live-item:hover{background:#26170b}
+  .mode-toggle{background:transparent;border:1px solid var(--line);color:var(--muted);letter-spacing:.08em}
+  .mode-toggle:hover{color:var(--accent);border-color:var(--accent)}
+  .source-switch{padding:4px}
+  .src-tab{letter-spacing:.1em;text-transform:uppercase;font-size:12px}
 </style>
 </head>
 <body>
