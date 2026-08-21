@@ -614,6 +614,7 @@ async function renderReader(chapterId, mangaId, idx) {
       const ratio = h > 0 ? Math.min(1, window.scrollY / h) : 0;
       bar.style.width = `${ratio * 100}%`;
       // رقم الصفحة الحالية = أول صورة ما زال أسفلها ظاهراً في الشاشة
+      if (readMode() === 'horiz') return; // العدّاد الأفقي له معالج خاص
       if (counter) {
         const mid = window.scrollY + window.innerHeight * 0.4;
         let n = 1;
@@ -654,6 +655,7 @@ async function renderReader(chapterId, mangaId, idx) {
 
     // في الوضع الأفقي التقدّم يُقاس بالتمرير الأفقي داخل الحاوية
     if (readMode() === 'horiz') {
+      if (counter) counter.textContent = '1';
       const rd = document.getElementById('reader');
       rd.addEventListener('scroll', () => {
         const max = rd.scrollWidth - rd.clientWidth;
