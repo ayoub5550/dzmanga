@@ -129,7 +129,10 @@ PORT=3090 node src/server.js
 - `PUBLIC_ORIGIN` قابل للتغيير عبر env عند تغيير الدومين.
 - `loadMangaDetail(id)` دالة مشتركة بين `/api/manga/:id` و`/manga/:id`.
 
-**الإعلانات (غير مفعّلة بعد):**
-- `src/public/ads.js` — stub موثّق: عند الحصول على حساب شبكة إعلانات يوضع
-  كود الحقن فيه (`window.DZ_ADS.enabled = true`). القاعدة: بانرات فقط،
-  **ممنوع popunder/redirect** — تدمر ثقة القراء.
+**الإعلانات (مفعّلة 2026-08-21):**
+- شبكة **Adsterra** — حساب publishers.adsterra.com (login: `dzmanga`، إيميل
+  صاحب المشروع، الموقع site id 5998901). وحدة Native Banner id `30856951`.
+- الحقن كله في `src/public/ads.js` (MutationObserver يعيد الحقن بعد كل
+  إعادة رسم للـSPA في أول `.ad-slot`). الأماكن: الرئيسية بعد قسم "الأكثر
+  شعبية" + صفحة المانجا تحت قائمة الفصول. القاعدة: بانرات فقط،
+  **ممنوع popunder/push/redirect** — تدمر ثقة القراء. لا إعلان داخل القارئ.

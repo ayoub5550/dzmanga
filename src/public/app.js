@@ -353,6 +353,7 @@ async function renderHome() {
       href: '#/browse/asq/popular',
       label: 'الكل',
     });
+    html += '<div class="ad-slot"></div>';
     for (const g of asqData.genres || []) {
       html += sectionHtml(genreIconName(g.key), g.label, g.items, {
         href: `#/browse/asq/genre-${g.key}`,
@@ -511,6 +512,7 @@ async function renderManga(id) {
         <button class="btn more" id="sortToggle" style="margin-inline-start:auto">تنازلي ⇅</button>
       </h2>
       <div id="chapterList">${chaptersHtml(chapters, manga.id, descending)}</div>
+      <div class="ad-slot"></div>
     `;
     document.getElementById('sortToggle')?.addEventListener('click', (e) => {
       descending = !descending;
