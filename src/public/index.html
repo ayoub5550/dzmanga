@@ -548,6 +548,10 @@
   .card.key-pop{animation:none}
   .card.key-pop .card-art{animation:cardPop .34s cubic-bezier(.3,1.4,.5,1) both}
   .live-item:active,.cont-card:active{transform:scale(.96);transition:transform .1s ease}
+
+  /* زر كتم/تشغيل أصوات النقر في الشريط العلوي */
+  .sound-toggle{padding:8px 10px !important;font-size:16px;line-height:1;min-width:44px}
+  @media (max-width:560px){ .sound-toggle{min-width:40px;padding:7px 8px !important} }
 </style>
 <script src="/ads.js" defer></script>
 </head>
@@ -562,6 +566,7 @@
     <div id="liveResults" class="live-results"></div>
   </form>
   <a href="#/browse" class="btn browse-link" style="white-space:nowrap">تصفّح الكل</a>
+  <button id="soundToggle" class="btn sound-toggle" type="button" aria-label="أصوات النقر">🔊</button>
 </header>
 <main id="app"></main>
 <footer class="site-footer">

@@ -418,8 +418,9 @@ async function renderSearch(q) {
   try {
     const data = await getJson(`/api/search?q=${encodeURIComponent(q)}`);
     const asqRes = data.asq || [];
+    const txRes = data.tx || [];
     const mdRes = data.md || [];
-    if (!asqRes.length && !mdRes.length) {
+    if (!asqRes.length && !txRes.length && !mdRes.length) {
       app.innerHTML = `<h2 class="section">نتائج البحث عن "${escapeHtml(q)}"</h2>
         <div class="empty">لا توجد نتائج بالعربية لهذا البحث.</div>`;
       return;
@@ -428,6 +429,9 @@ async function renderSearch(q) {
     if (asqRes.length)
       html += `<h2 class="section">${icon('book')} مانجا العاشق (${asqRes.length})</h2>
         <div class="grid">${asqRes.map(cardHtml).join('')}</div>`;
+    if (txRes.length)
+      html += `<h2 class="section">${icon('sword')} Team-X (${txRes.length})</h2>
+        <div class="grid">${txRes.map(cardHtml).join('')}</div>`;
     if (mdRes.length)
       html += `<h2 class="section">${icon('grid')} MangaDex (${mdRes.length})</h2>
         <div class="grid">${mdRes.map(cardHtml).join('')}</div>`;
@@ -1261,6 +1265,21 @@ function router() {
 
 /* أغلفة تظهر سوداء عند فشل بروكسي /img (حجب مؤقت من MangaDex مثلاً):
    نجرّب الرابط المباشر أولاً ثم صورة بديلة بدل مربع أسود. */
+
+
+/* اختصارات لوحة المفاتيح داخل القارئ (لمستخدمي الحاسوب):
+   ← الفصل التالي، → الفصل السابق — نفس اتجاه أزرار الشريط السفلي. */
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input,select,textarea')) return;
+  if (!location.hash.startsWith('#/read/')) return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const bar = document.querySelector('.reader-bar');
+  if (!bar) return;
+  const btns = bar.querySelectorAll('button');
+  const target = e.key === 'ArrowLeft' ? btns[0] : btns[1];
+  if (target && !target.disabled) { e.preventDefault(); target.click(); }
+});
+
 document.addEventListener(
   'error',
   (e) => {
@@ -1289,6 +1308,16 @@ router();
 (() => {
   let ctx = null;
   const SELECTOR = '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a';
+  // تفضيل الصوت (زر 🔊 في الشريط العلوي) — مفعّل افتراضياً
+  const SOUND_KEY = 'dz_sound_v1';
+  const soundOn = () => localStorage.getItem(SOUND_KEY) !== 'off';
+  window.__dzSound = {
+    on: soundOn,
+    toggle() {
+      localStorage.setItem(SOUND_KEY, soundOn() ? 'off' : 'on');
+      return soundOn();
+    },
+  };
   function ac() {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -1299,6 +1328,7 @@ router();
     return ctx;
   }
   function click(down) {
+    if (!soundOn()) return;
     const a = ac();
     if (!a) return;
     const t = a.currentTime;
@@ -1351,4 +1381,21 @@ router();
   }
   document.addEventListener('pointerup', pop, { passive: true, capture: true });
   document.addEventListener('pointercancel', pop, { passive: true, capture: true });
+})();
+
+/* زر الصوت في الشريط العلوي: 🔊/🔇 مع حفظ التفضيل */
+(() => {
+  const btn = document.getElementById('soundToggle');
+  if (!btn) return;
+  const paint = (on) => {
+    btn.textContent = on ? '🔊' : '🔇';
+    btn.title = on ? 'كتم أصوات النقر' : 'تشغيل أصوات النقر';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  };
+  paint(window.__dzSound.on());
+  btn.addEventListener('click', () => {
+    const on = window.__dzSound.toggle();
+    paint(on);
+    toast(on ? 'الأصوات مفعّلة 🔊' : 'الأصوات مكتومة 🔇');
+  });
 })();
