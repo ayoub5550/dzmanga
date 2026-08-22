@@ -367,6 +367,15 @@ async function renderHome() {
       label: 'الكل',
     });
     html += '<div class="ad-slot" data-ad="native"></div>';
+    const txData = data.tx || { manhwa: [], manhua: [] };
+    html += sectionHtml('sword', 'مانهوا كورية — Team-X', txData.manhwa, {
+      href: '#/browse/tx/manhwa',
+      label: 'الكل',
+    });
+    html += sectionHtml('portal', 'مانها صينية — Team-X', txData.manhua, {
+      href: '#/browse/tx/manhua',
+      label: 'الكل',
+    });
     for (const g of asqData.genres || []) {
       html += sectionHtml(genreIconName(g.key), g.label, g.items, {
         href: `#/browse/asq/genre-${g.key}`,

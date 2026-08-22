@@ -370,10 +370,37 @@ function cachedMdHome() {
   return homeCache.inflight;
 }
 
-// /api/home يجمع المصدرين. أي مصدر يفشل يُرجع فارغاً بدل إسقاط الصفحة كلها
+// Team-X home rows (manhwa + manhua, first page of each) — cheap, so 30 min TTL.
+const TX_HOME_TTL_MS = 30 * 60 * 1000;
+let txHomeCache = { data: null, t: 0, inflight: null };
+async function buildTxHome() {
+  const [manhwa, manhua] = await Promise.all([
+    tx.list({ type: 'manhwa' }),
+    tx.list({ type: 'manhua' }),
+  ]);
+  return { manhwa: manhwa.items, manhua: manhua.items };
+}
+function cachedTxHome() {
+  const fresh = txHomeCache.data && Date.now() - txHomeCache.t < TX_HOME_TTL_MS;
+  if (fresh) return Promise.resolve(txHomeCache.data);
+  if (!txHomeCache.inflight) {
+    txHomeCache.inflight = buildTxHome()
+      .then((data) => {
+        txHomeCache = { data, t: Date.now(), inflight: null };
+        return data;
+      })
+      .catch((e) => {
+        txHomeCache.inflight = null;
+        throw e;
+      });
+  }
+  return txHomeCache.inflight;
+}
+
+// /api/home يجمع المصادر الثلاثة. أي مصدر يفشل يُرجع فارغاً بدل إسقاط الصفحة كلها
 // (3asq و MangaDex ينقطعان أحياناً بشكل مستقل).
 app.get('/api/home', async (req, res) => {
-  const [asqHome, mdHome] = await Promise.all([
+  const [asqHome, mdHome, txHome] = await Promise.all([
     cachedAsqHome().catch((e) => {
       console.error('3asq home failed:', e.message);
       return null;
@@ -382,12 +409,17 @@ app.get('/api/home', async (req, res) => {
       console.error('mangadex home failed:', e.message);
       return null;
     }),
+    cachedTxHome().catch((e) => {
+      console.error('teamx home failed:', e.message);
+      return null;
+    }),
   ]);
   if (!asqHome && !mdHome) return res.status(502).json({ error: 'both sources unreachable' });
   const hero = (asqHome?.popular || []).slice(0, 6);
   res.json({
     hero: hero.length ? hero : mdHome?.hero || [],
     asq: asqHome || { latest: [], popular: [], genres: [] },
+    tx: txHome || { manhwa: [], manhua: [] },
     md: mdHome || { popular: [], latest: [], genres: [] },
     // مفاتيح قديمة للتوافق مع أي عميل لم يُحدَّث بعد
     popular: mdHome?.popular || [],
