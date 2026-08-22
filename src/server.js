@@ -3,6 +3,11 @@ const zlib = require('zlib');
 const path = require('path');
 const asq = require('./sources/asq');
 const tx = require('./sources/teamx');
+const sharp = require('sharp');
+
+// حدود ضغط الصور في بروكسي /img (انظر التعليق هناك)
+const IMG_MAX_WIDTH = parseInt(process.env.IMG_MAX_WIDTH, 10) || 1080;
+const IMG_WEBP_QUALITY = parseInt(process.env.IMG_WEBP_QUALITY, 10) || 78;
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -162,6 +167,9 @@ function mapManga(m) {
     cover: coverUrl(m.id, coverRel?.attributes?.fileName),
     author: authorRel?.attributes?.name || null,
     source: 'md',
+    // نفس المفتاح الذي يرجعه محوّلا asq وTeam-X — بدونه كانت شارة المصدر
+    // تطلع فارغة لعناوين MangaDex في أي عميل يعتمد على الـAPI مباشرة.
+    sourceLabel: 'MangaDex',
   };
 }
 
@@ -416,6 +424,9 @@ app.get('/api/home', async (req, res) => {
   ]);
   if (!asqHome && !mdHome) return res.status(502).json({ error: 'both sources unreachable' });
   const hero = (asqHome?.popular || []).slice(0, 6);
+  // كاش على مستوى المتصفح/nginx: الرئيسية تُبنى من كاشات داخلية أصلاً،
+  // فلا داعي أن يضرب كل زائر السيرفر — 3 دقائق توازن جيد بين الطزاجة والحمل.
+  res.set('Cache-Control', 'public, max-age=180');
   res.json({
     hero: hero.length ? hero : mdHome?.hero || [],
     asq: asqHome || { latest: [], popular: [], genres: [] },
@@ -448,6 +459,7 @@ async function mdLatestPage(page) {
 
 app.get('/api/feed', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  res.set('Cache-Control', 'public, max-age=300'); // نفس منطق /api/home — كاش داخلي 10 دقائق أصلاً
   const hit = feedPageCache.get(page);
   if (hit && Date.now() - hit.t < FEED_TTL_MS) return res.json(hit.data);
   const [a, t, m] = await Promise.all([
@@ -780,9 +792,30 @@ app.get('/img', async (req, res) => {
       signal: AbortSignal.timeout(isAsq || isTx ? 15000 : 6000),
     });
     if (!upstream.ok) return res.status(upstream.status).end();
-    res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=604800, immutable');
     const buf = Buffer.from(await upstream.arrayBuffer());
+    res.set('Cache-Control', 'public, max-age=604800, immutable');
+    // ضغط الصور (2026-08-22): صفحات الفصول من المصادر تصل بأحجام ضخمة
+    // (قيست صفحات 2-6MB — فصل واحد ~40-50MB!). قاتل للزوار على داتا موبايل
+    // في الجزائر ويأكل bandwidth السيرفر. نحوّل لـWebP بعرض أقصى 1080px
+    // (أعرض من أي شاشة موبايل، والقارئ لا يعرض أعرض من ذلك أصلاً).
+    // ?raw=1 يتجاوز الضغط إن احتجنا الأصل يوماً. إذا فشل sharp (صورة
+    // معطوبة/صيغة غريبة) نرجع الأصل كما كان — لا شاشة بيضاء أبداً.
+    if (req.query.raw !== '1') {
+      try {
+        const out = await sharp(buf, { failOn: 'none' })
+          .resize({ width: IMG_MAX_WIDTH, withoutEnlargement: true })
+          .webp({ quality: IMG_WEBP_QUALITY })
+          .toBuffer();
+        // نادراً يكون الأصل أصغر (أيقونات صغيرة مثلاً) — نرسل الأصغر دائماً
+        if (out.length < buf.length) {
+          res.set('Content-Type', 'image/webp');
+          return res.send(out);
+        }
+      } catch (e) {
+        console.error('img resize failed (serving original):', e.message);
+      }
+    }
+    res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
     res.send(buf);
   } catch (e) {
     // Server-side fetch failed — most likely the same network-level IP
@@ -899,8 +932,12 @@ app.get('/manga/:id', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=600').type('html').send(html);
 });
 
+// أي مسار غير معروف: نعرض واجهة الـSPA للزائر البشري لكن بحالة **404 حقيقية**
+// بدل 200 (soft 404). غوغل كان يفهرس روابط غالطة على أنها صفحات صالحة ويضر
+// بالـSEO. المسارات الصالحة كلها معالجة فوق هذا السطر (/, static, /api/*,
+// /img, /manga/:id, robots, sitemap) — فكل ما يصل هنا هو فعلاً غير موجود.
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
