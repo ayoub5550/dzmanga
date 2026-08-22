@@ -2,6 +2,7 @@ const express = require('express');
 const zlib = require('zlib');
 const path = require('path');
 const asq = require('./sources/asq');
+const tx = require('./sources/teamx');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -454,6 +455,19 @@ app.get('/api/browse', async (req, res) => {
       return res.status(502).json({ error: 'failed to load 3asq' });
     }
   }
+  if ((req.query.source || '') === 'tx') {
+    // Team-X: مانهوا كورية / مانها صينية. `view` يحدّد النوع أو التصنيف.
+    try {
+      const view = req.query.view || 'manhwa';
+      const genreDef = tx.GENRES.find((g) => g.key === view);
+      const type = tx.TYPES[view] ? view : genreDef ? null : 'manhwa';
+      const data = await tx.list({ page, type, genre: genreDef ? genreDef.slug : null });
+      return res.json({ items: data.items, page: data.page, hasNext: data.hasNext, source: 'tx' });
+    } catch (e) {
+      console.error('teamx browse failed:', e.message);
+      return res.status(502).json({ error: 'failed to load teamx' });
+    }
+  }
   if (!fullCatalog.items.length) {
     // Index not ready yet (first ~30s after a restart) — kick off the build
     // and tell the client to retry shortly instead of blocking the request.
@@ -497,9 +511,13 @@ app.get('/api/search', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.json({ results: [] });
   // بحث موحّد في المصدرين: نتائج "مانجا العاشق" أولاً (عربية أصلية) ثم MangaDex.
-  const [asqResults, mdResults] = await Promise.all([
+  const [asqResults, txResults, mdResults] = await Promise.all([
     asq.search(q).catch((e) => {
       console.error('3asq search failed:', e.message);
+      return [];
+    }),
+    tx.search(q).catch((e) => {
+      console.error('teamx search failed:', e.message);
       return [];
     }),
     (async () => {
@@ -511,13 +529,19 @@ app.get('/api/search', async (req, res) => {
       return [];
     }),
   ]);
-  res.json({ results: [...asqResults, ...mdResults], asq: asqResults, md: mdResults });
+  res.json({
+    results: [...asqResults, ...txResults, ...mdResults],
+    asq: asqResults,
+    tx: txResults,
+    md: mdResults,
+  });
 });
 
 // Shared by /api/manga/:id (JSON for the SPA) and /manga/:id (SEO HTML for
 // crawlers) — keep the two in sync by loading through this single helper.
 async function loadMangaDetail(id) {
   if (id.startsWith('asq:')) return asq.detail(id.slice(4));
+  if (id.startsWith('tx:')) return tx.detail(id.slice(3));
   const url = `${MD_BASE}/manga/${id}?includes[]=cover_art&includes[]=author`;
   const data = await cachedFetchJson(url);
   const manga = mapManga(data.data);
@@ -538,6 +562,14 @@ app.get('/api/manga/:id', async (req, res) => {
 });
 
 app.get('/api/manga/:id/chapters', async (req, res) => {
+  if (req.params.id.startsWith('tx:')) {
+    try {
+      return res.json({ chapters: await tx.chapters(req.params.id.slice(3)) });
+    } catch (e) {
+      console.error('teamx chapters failed:', e.message);
+      return res.status(502).json({ error: 'failed to load chapters' });
+    }
+  }
   if (req.params.id.startsWith('asq:')) {
     try {
       const chapters = await asq.chapters(req.params.id.slice(4));
@@ -581,6 +613,16 @@ app.get('/api/manga/:id/chapters', async (req, res) => {
 });
 
 app.get('/api/chapter/:id/pages', async (req, res) => {
+  if (req.params.id.startsWith('tx:')) {
+    // شكل المعرّف: tx:<series-slug>:<chapter-number>
+    const [, slug, num] = req.params.id.split(':');
+    try {
+      return res.json({ pages: await tx.pages(slug, num) });
+    } catch (e) {
+      console.error('teamx pages failed:', e.message);
+      return res.status(502).json({ error: 'failed to load pages' });
+    }
+  }
   if (req.params.id.startsWith('asq:')) {
     // شكل المعرّف: asq:<manga-slug>:<chapter-slug>
     const [, slug, chapterSlug] = req.params.id.split(':');
@@ -622,7 +664,8 @@ app.get('/api/chapter/:id/pages', async (req, res) => {
 // Image proxy: avoids client-side CORS/hotlink issues, keeps requests light via caching
 app.get('/img', async (req, res) => {
   const u = req.query.u;
-  const allowed = u && u.startsWith('https://') && (u.includes('mangadex') || asq.isAsqImage(u));
+  const allowed =
+    u && u.startsWith('https://') && (u.includes('mangadex') || asq.isAsqImage(u) || tx.isTxImage(u));
   if (!allowed) {
     return res.status(400).send('bad url');
   }
@@ -631,15 +674,22 @@ app.get('/img', async (req, res) => {
     // succeed but the response never arrives, which would otherwise hang
     // this request for a long time before falling back to the redirect.
     const isAsq = asq.isAsqImage(u);
+    const isTx = tx.isTxImage(u);
     const upstream = await fetch(u, {
-      headers: isAsq
+      headers: isTx
+        ? {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            Referer: `${tx.BASE}/`,
+          }
+        : isAsq
         ? {
             'User-Agent':
               'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
             Referer: `${asq.BASE}/`,
           }
         : { 'User-Agent': 'dzmanga/1.0' },
-      signal: AbortSignal.timeout(isAsq ? 15000 : 6000),
+      signal: AbortSignal.timeout(isAsq || isTx ? 15000 : 6000),
     });
     if (!upstream.ok) return res.status(upstream.status).end();
     res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');

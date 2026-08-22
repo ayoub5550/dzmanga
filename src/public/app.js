@@ -170,7 +170,14 @@ function preloadImages(urls) {
 const PLACEHOLDER = 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
 
 function sourceLabel(src) {
-  return src === 'asq' ? 'العاشق' : 'MangaDex';
+  if (src === 'asq') return 'العاشق';
+  if (src === 'tx') return 'Team-X';
+  return 'MangaDex';
+}
+
+// فئة لون الشارة على البطاقة (لكل مصدر لونه)
+function sourceClass(src) {
+  return src === 'asq' ? 'asq' : src === 'tx' ? 'tx' : 'md';
 }
 
 function loadingHtml(text = 'جارِ التحميل…') {
@@ -201,7 +208,7 @@ function cardHtml(m) {
   return `<a class="card" href="#/manga/${encodeURIComponent(m.id)}">
     <div class="card-art">
       <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" referrerpolicy="no-referrer" />
-      <span class="card-src ${m.source === 'asq' ? 'asq' : 'md'}">${sourceLabel(m.source)}</span>
+      <span class="card-src ${sourceClass(m.source)}">${sourceLabel(m.source)}</span>
       <div class="card-chips">${chapterBadge}${ratingBadge}</div>
     </div>
     <div class="title">${escapeHtml(m.title)}</div>
@@ -241,7 +248,7 @@ function liveItemHtml(m) {
   return `<a class="live-item" href="#/manga/${encodeURIComponent(m.id)}">
     <img src="${cover}" loading="lazy" referrerpolicy="no-referrer" />
     <span class="t">${escapeHtml(m.title)}</span>
-    <span class="src ${m.source === 'asq' ? 'asq' : 'md'}">${sourceLabel(m.source)}</span>
+    <span class="src ${sourceClass(m.source)}">${sourceLabel(m.source)}</span>
   </a>`;
 }
 
@@ -493,7 +500,7 @@ async function renderManga(id) {
         <div class="info">
           <h1>${escapeHtml(manga.title)}</h1>
           <div class="meta">
-            <span class="card-src ${manga.source === 'asq' ? 'asq' : 'md'}" style="position:static">${sourceLabel(manga.source)}</span>
+            <span class="card-src ${sourceClass(manga.source)}" style="position:static">${sourceLabel(manga.source)}</span>
             ${manga.rating ? `<span class="dot-sep">★ ${manga.rating}</span>` : ''}
             ${metaBits.map((b) => `<span class="dot-sep">${escapeHtml(String(b))}</span>`).join('')}
           </div>
@@ -787,7 +794,7 @@ function renderLibrary() {
     .sort((a, b) => b.at - a.at);
   let html = `<h2 class="section">${icon('heartFill')} المفضلة (${favs.length})</h2>`;
   html += favs.length
-    ? `<div class="grid">${favs.map((f) => cardHtml({ ...f, source: f.id.startsWith('asq:') ? 'asq' : 'md' })).join('')}</div>`
+    ? `<div class="grid">${favs.map((f) => cardHtml({ ...f, source: f.id.startsWith('asq:') ? 'asq' : f.id.startsWith('tx:') ? 'tx' : 'md' })).join('')}</div>`
     : `<div class="empty">لم تُضف أي مانجا للمفضلة بعد — افتح أي مانجا واضغط "أضف للمفضلة".</div>`;
   html += `<h2 class="section">${icon('clock')} سجل القراءة</h2>`;
   html += history.length
@@ -832,6 +839,22 @@ const MD_TABS = [
   { key: 'fantasy', label: 'خيال', icon: 'wand' },
   { key: 'comedy', label: 'كوميدي', icon: 'mask' },
   { key: 'horror', label: 'رعب', icon: 'ghost' },
+];
+
+// تبويبات مصدر Team-X — يجب أن تبقى متوافقة مع TYPES/GENRES في src/sources/teamx.js
+const TX_TABS = [
+  { key: 'manhwa', label: 'مانهوا كورية', icon: 'sparkle' },
+  { key: 'manhua', label: 'مانها صينية', icon: 'grid' },
+  { key: 'manga', label: 'مانجا يابانية', icon: 'fire' },
+  { key: 'webtoon', label: 'ويب تون', icon: 'portal' },
+  { key: 'action', label: 'أكشن', icon: 'sword' },
+  { key: 'romance', label: 'رومانسي', icon: 'heart' },
+  { key: 'isekai', label: 'إيسيكاي', icon: 'portal' },
+  { key: 'martial', label: 'فنون قتال', icon: 'sword' },
+  { key: 'fantasy', label: 'فانتازيا', icon: 'wand' },
+  { key: 'drama', label: 'دراما', icon: 'mask' },
+  { key: 'comedy', label: 'كوميدي', icon: 'mask' },
+  { key: 'mystery', label: 'غموض', icon: 'ghost' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -924,7 +947,8 @@ function saveCurrentFeedScroll() {
 // route: #/browse/{asq|md}/{latest|popular|genre-KEY|md tab key}
 async function renderBrowse(source = 'asq', view = '') {
   setActiveNav('browse');
-  const isAsq = source !== 'md';
+  const isTx = source === 'tx';
+  const isAsq = !isTx && source !== 'md';
   const asqOrder = view === 'popular' ? 'popular' : 'latest';
   const asqGenre = view.startsWith('genre-') ? view.slice(6) : null;
   const feedKey = `${source}|${view || 'default'}`;
@@ -932,7 +956,8 @@ async function renderBrowse(source = 'asq', view = '') {
   const sourceTabs = `
     <div class="source-switch">
       <button class="src-tab ${isAsq ? 'active' : ''}" data-src="asq">مانجا العاشق</button>
-      <button class="src-tab ${!isAsq ? 'active' : ''}" data-src="md">MangaDex</button>
+      <button class="src-tab ${isTx ? 'active' : ''}" data-src="tx">مانهوا (Team-X)</button>
+      <button class="src-tab ${!isAsq && !isTx ? 'active' : ''}" data-src="md">MangaDex</button>
     </div>`;
 
   const asqTabs = `
@@ -947,6 +972,14 @@ async function renderBrowse(source = 'asq', view = '') {
       ).join('')}
     </div>`;
 
+  const txTabs = `
+    <div class="tabs">
+      ${TX_TABS.map(
+        (t) =>
+          `<button class="tab ${(view || 'manhwa') === t.key ? 'active' : ''}" data-view="${t.key}">${icon(t.icon)}${t.label}</button>`
+      ).join('')}
+    </div>`;
+
   const mdTabs = `
     <div class="tabs">
       ${MD_TABS.map(
@@ -955,7 +988,7 @@ async function renderBrowse(source = 'asq', view = '') {
       ).join('')}
     </div>`;
 
-  app.innerHTML = `<div class="browse-bar">${sourceTabs}${isAsq ? asqTabs : mdTabs}</div><div id="browseBody">${skeletonGrid(18)}</div>`;
+  app.innerHTML = `<div class="browse-bar">${sourceTabs}${isAsq ? asqTabs : isTx ? txTabs : mdTabs}</div><div id="browseBody">${skeletonGrid(18)}</div>`;
 
   app.querySelectorAll('.src-tab').forEach((btn) =>
     btn.addEventListener('click', () => {
@@ -964,7 +997,7 @@ async function renderBrowse(source = 'asq', view = '') {
   );
   app.querySelectorAll('.tab').forEach((btn) =>
     btn.addEventListener('click', () => {
-      location.hash = `#/browse/${isAsq ? 'asq' : 'md'}/${btn.dataset.view}`;
+      location.hash = `#/browse/${source}/${btn.dataset.view}`;
     })
   );
   // التصنيف المفتوح يظهر دائماً في شريط التصنيفات (لا يبقى مخفياً خارج الشاشة)
@@ -1003,6 +1036,14 @@ async function renderBrowse(source = 'asq', view = '') {
       const qs = new URLSearchParams({ source: 'asq', page: String(page), order: asqOrder });
       if (genreSlug) qs.set('genre', genreSlug);
       const data = await getJson(`/api/browse?${qs}`);
+      return { items: data.items, hasNext: data.hasNext };
+    });
+    return;
+  }
+  if (isTx) {
+    const txView = view || 'manhwa';
+    mountFeed(body, feedKey, async (page) => {
+      const data = await getJson(`/api/browse?source=tx&view=${encodeURIComponent(txView)}&page=${page}`);
       return { items: data.items, hasNext: data.hasNext };
     });
     return;
