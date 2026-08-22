@@ -486,6 +486,58 @@
   .ch-select{font-family:inherit;font-size:12px;max-width:130px;padding:5px 8px;cursor:pointer;
     background:#1e191c;color:#f2ecdc;border:2px solid #3a322a}
   @media (max-width:520px){.to-top{bottom:104px}}
+
+  /* ===== KEYCAP THEME: أزرار وأيقونات بشكل مفاتيح كيبورد كلاسيكية ===== */
+  .btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta{
+    border:3px solid #4a3617!important;color:#2b1e0e;
+    background:linear-gradient(180deg,#f7edca 0%,#e8d29b 55%,#dcc287 100%);
+    box-shadow:0 5px 0 #4a3617, 0 8px 10px rgba(0,0,0,.28),
+      inset 0 2px 0 rgba(255,255,255,.55), inset 0 -3px 0 rgba(74,54,23,.25)!important;
+    transform:translateY(0);will-change:transform;
+    transition:transform .06s ease, box-shadow .06s ease, filter .06s ease}
+  .btn:active,.tab:active,.src-tab:active,.mode-toggle:active,.page-btn:active,.to-top:active,.hero-cta:active{
+    transform:translateY(5px)!important;filter:brightness(.94);
+    box-shadow:0 0 0 #4a3617, inset 0 3px 6px rgba(43,30,14,.45)!important}
+  .btn.primary,.tab.active,.src-tab.active,.hero-cta{
+    background:linear-gradient(180deg,#48bb58 0%,#2f9e3f 55%,#237a30 100%);
+    color:#fff;border-color:#1c5c26!important;text-shadow:1px 1px 0 rgba(0,0,0,.35);
+    box-shadow:0 5px 0 #1c5c26, 0 8px 10px rgba(0,0,0,.28),
+      inset 0 2px 0 rgba(255,255,255,.35), inset 0 -3px 0 rgba(0,0,0,.25)!important}
+  .btn.primary:active,.tab.active:active,.src-tab.active:active,.hero-cta:active{
+    box-shadow:0 0 0 #1c5c26, inset 0 3px 6px rgba(0,0,0,.45)!important}
+  .btn:disabled{transform:none!important;box-shadow:0 5px 0 #4a3617, inset 0 2px 0 rgba(255,255,255,.4)!important;filter:grayscale(.4)}
+  .tabs{padding-bottom:12px}
+  .browse-bar .tabs{padding:10px 2px 12px}
+  .source-switch{background:transparent;border:none;gap:8px;padding:4px 2px 8px}
+  .src-tab{padding:8px 16px}
+  /* أيقونات الشريط السفلي = مفاتيح */
+  .bottom-nav{gap:6px;padding:8px 8px calc(9px + env(safe-area-inset-bottom))}
+  .bottom-nav a{border:2px solid #4a3617;background:linear-gradient(180deg,#f2e3b6 0%,#e0c88e 60%,#d3b878 100%);
+    box-shadow:0 4px 0 #4a3617, inset 0 2px 0 rgba(255,255,255,.5);color:#5f4d2e;
+    transform:translateY(0);transition:transform .06s ease, box-shadow .06s ease;padding:5px 2px 4px}
+  .bottom-nav a:active{transform:translateY(4px);box-shadow:0 0 0 #4a3617, inset 0 2px 5px rgba(43,30,14,.4)}
+  .bottom-nav a.active{background:linear-gradient(180deg,#48bb58 0%,#2f9e3f 60%,#237a30 100%);
+    color:#fff;border-color:#1c5c26;box-shadow:0 4px 0 #1c5c26, inset 0 2px 0 rgba(255,255,255,.35);
+    text-shadow:1px 1px 0 rgba(0,0,0,.35)}
+  .bottom-nav a.active:active{box-shadow:0 0 0 #1c5c26, inset 0 2px 5px rgba(0,0,0,.4)}
+  .bottom-nav a .micon svg{filter:drop-shadow(1px 1px 0 rgba(0,0,0,.25))}
+  /* نسخة داكنة داخل القارئ */
+  body:has(.reader) .btn,body:has(.reader) .mode-toggle{
+    background:linear-gradient(180deg,#2e282c 0%,#1e191c 60%,#141014 100%);
+    color:#f2ecdc;border-color:#3a322a!important;
+    box-shadow:0 5px 0 #000, inset 0 2px 0 rgba(255,255,255,.08)!important}
+  body:has(.reader) .btn:active,body:has(.reader) .mode-toggle:active{
+    box-shadow:0 0 0 #000, inset 0 3px 6px rgba(0,0,0,.6)!important}
+  body:has(.reader) .btn.primary{
+    background:linear-gradient(180deg,#48bb58 0%,#2f9e3f 55%,#237a30 100%);
+    color:#fff;border-color:#1c5c26!important;
+    box-shadow:0 5px 0 #14421b, inset 0 2px 0 rgba(255,255,255,.3)!important}
+  body:has(.reader) .btn.primary:active{box-shadow:0 0 0 #14421b, inset 0 3px 6px rgba(0,0,0,.5)!important}
+  body:has(.reader) .bottom-nav a{background:linear-gradient(180deg,#2e282c 0%,#1e191c 60%,#141014 100%);
+    border-color:#3a322a;color:#8f8676;box-shadow:0 4px 0 #000, inset 0 2px 0 rgba(255,255,255,.06)}
+  body:has(.reader) .bottom-nav a:active{box-shadow:0 0 0 #000, inset 0 2px 5px rgba(0,0,0,.6)}
+  body:has(.reader) .bottom-nav a.active{background:linear-gradient(180deg,#3a322a 0%,#241f1c 100%);
+    color:#f2ecdc;border-color:#5a4d3a;box-shadow:0 4px 0 #000, inset 0 2px 0 rgba(255,255,255,.1);text-shadow:none}
 </style>
 <script src="/ads.js" defer></script>
 </head>

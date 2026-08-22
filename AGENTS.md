@@ -225,3 +225,8 @@ gmanga/swatmanga/teamx.fun نطاقاتها بيعت أو تحوّلت. لا ت�
 reader-progress/reader-head/to-top/reader-end). الحواف تبقى للتنقّل (رأسي: >0.85 سابق،
 <0.15 تالي؛ أفقي: نقرة الوسط 0.3–0.7 فقط). أي تنقّل في الراوتر يزيل zen.
 تلميح toast يظهر مرة واحدة (`dz_zen_hint_v1`).
+
+## سمة المفاتيح (Keycap) — 2026-08-22
+- كتلة CSS «KEYCAP THEME» في نهاية `<style>` بـ index.html: كل الأزرار (.btn/.tab/.src-tab/.mode-toggle/.page-btn/.to-top/.hero-cta) وأيقونات الشريط السفلي (.bottom-nav a) بشكل مفتاح كيبورد كلاسيكي: تدرّج فاتح→غامق + ظل سفلي صلب 5px، وعند الضغط (:active) translateY(5px) + ظل داخلي.
+- نسخة داكنة داخل القارئ عبر body:has(.reader). المفاتيح الخضراء (primary/active) لها ظل #1c5c26.
+- يجب أن تبقى هذه الكتلة آخر شيء في <style> لأنها تتجاوز HERMES/PIXEL بـ !important. SHELL الحالي: dz-shell-v13.
