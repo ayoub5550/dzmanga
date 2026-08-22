@@ -595,7 +595,10 @@ async function renderManga(id) {
 // ---------------------------------------------------------------------------
 // القارئ
 // ---------------------------------------------------------------------------
-async function renderReader(chapterId, mangaId, idx) {
+async function renderReader(chapterId, mangaId, idx, forceVert = false) {
+  // فصول «الشريط الطويل» (ويب تون/مانهوا) لا تصلح للوضع الأفقي؛ forceVert
+  // يتجاوز تفضيل المستخدم لهذا الفصل فقط دون تغيير الإعداد المحفوظ.
+
   setActiveNav(null);
   app.innerHTML = loadingHtml('جارِ تحميل الفصل…');
   try {
@@ -617,6 +620,7 @@ async function renderReader(chapterId, mangaId, idx) {
       window.__mangaCache[mangaId] = manga;
     }
     const { pages, broken } = await getJson(`/api/chapter/${encodeURIComponent(chapterId)}/pages`);
+    const mode = forceVert ? 'vert' : readMode();
     const i = parseInt(idx, 10);
     const current = chapters[i];
     const prev = chapters[i - 1];
@@ -627,7 +631,7 @@ async function renderReader(chapterId, mangaId, idx) {
     app.innerHTML = `
       <div class="reader-head">
         <a class="backlink" href="#/manga/${encodeURIComponent(mangaId)}">&rarr; ${escapeHtml(manga.title || '')}</a>
-        <button class="mode-toggle" id="modeToggle" type="button">${readMode() === 'horiz' ? 'وضع أفقي' : 'وضع رأسي'}</button>
+        <button class="mode-toggle" id="modeToggle" type="button">${mode === 'horiz' ? 'وضع أفقي' : 'وضع رأسي'}</button>
         <select class="ch-select" id="chSelect" aria-label="انتقل إلى فصل">
           ${chapters
             .map(
@@ -646,7 +650,7 @@ async function renderReader(chapterId, mangaId, idx) {
             next ? ' جرّب الفصل التالي.' : ''
           }</div>`
         : ''}
-      <div class="reader${readMode() === 'horiz' ? ' horiz' : ''}" id="reader">
+      <div class="reader${mode === 'horiz' ? ' horiz' : ''}" id="reader">
         ${pages
           .map(
             (p, n) =>
@@ -688,7 +692,7 @@ async function renderReader(chapterId, mangaId, idx) {
       const ratio = h > 0 ? Math.min(1, window.scrollY / h) : 0;
       bar.style.width = `${ratio * 100}%`;
       // رقم الصفحة الحالية = أول صورة ما زال أسفلها ظاهراً في الشاشة
-      if (readMode() === 'horiz') return; // العدّاد الأفقي له معالج خاص
+      if (mode === 'horiz') return; // العدّاد الأفقي له معالج خاص
       if (counter) {
         const mid = window.scrollY + window.innerHeight * 0.4;
         let n = 1;
@@ -713,7 +717,7 @@ async function renderReader(chapterId, mangaId, idx) {
     window.__readerScroll = onScroll;
     window.addEventListener('scroll', onScroll, { passive: true });
     // استئناف الموضع داخل نفس الفصل إن رجع إليه المستخدم
-    const savedY = readMode() === 'horiz' ? 0 : getScroll(chapterId);
+    const savedY = mode === 'horiz' ? 0 : getScroll(chapterId);
     if (savedY > 100) {
       requestAnimationFrame(() => window.scrollTo(0, savedY));
       toast('استأنفنا من حيث توقّفت');
@@ -728,16 +732,34 @@ async function renderReader(chapterId, mangaId, idx) {
     });
 
     // تبديل وضع القراءة (رأسي/أفقي) — يُحفظ ويبقى للفصول القادمة
+    // كشف فصول الشريط الطويل: أول صورة نسبتها طول/عرض > 2 تعني ويب تون —
+    // الوضع الأفقي يصغّرها لشريط غير مقروء، فنفرض الرأسي ونخفي زر التبديل.
     const modeBtn = document.getElementById('modeToggle');
+    const probe = document.querySelector('.reader img');
+    const stripCheck = () => {
+      if (!probe || !probe.naturalWidth) return;
+      if (probe.naturalHeight / probe.naturalWidth > 2) {
+        if (mode === 'horiz') {
+          toast('هذا الفصل بصيغة شريط طويل — تم التحويل للوضع الرأسي');
+          renderReader(chapterId, mangaId, idx, true);
+        } else if (modeBtn) {
+          modeBtn.style.display = 'none';
+        }
+      }
+    };
+    if (probe) {
+      if (probe.complete) stripCheck();
+      else probe.addEventListener('load', stripCheck, { once: true });
+    }
     modeBtn?.addEventListener('click', () => {
-      const nextMode = readMode() === 'horiz' ? 'vert' : 'horiz';
+      const nextMode = mode === 'horiz' ? 'vert' : 'horiz';
       save(STORE.mode, nextMode);
       renderReader(chapterId, mangaId, idx);
       toast(nextMode === 'horiz' ? 'وضع القراءة: أفقي' : 'وضع القراءة: رأسي');
     });
 
     // في الوضع الأفقي التقدّم يُقاس بالتمرير الأفقي داخل الحاوية
-    if (readMode() === 'horiz') {
+    if (mode === 'horiz') {
       if (counter) counter.textContent = '1';
       const rd = document.getElementById('reader');
       rd.addEventListener('scroll', () => {
@@ -773,7 +795,7 @@ async function renderReader(chapterId, mangaId, idx) {
     // مناطق نقر على الحواف: يمين = السابق، يسار = التالي (اتجاه عربي)
     const reader = document.getElementById('reader');
     reader.addEventListener('click', (e) => {
-      if (readMode() === 'horiz') return; // السحب هو وسيلة التنقّل هناك
+      if (mode === 'horiz') return; // السحب هو وسيلة التنقّل هناك
       const x = e.clientX / window.innerWidth;
       if (x > 0.85 && prev) location.hash = `#/read/${encodeURIComponent(prev.id)}/${encodeURIComponent(mangaId)}/${i - 1}`;
       else if (x < 0.15 && next) location.hash = `#/read/${encodeURIComponent(next.id)}/${encodeURIComponent(mangaId)}/${i + 1}`;
