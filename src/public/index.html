@@ -281,6 +281,13 @@
     .dz-toast{transition:none}
   }
 
+  /* وضع القراءة الصافي: نقرة وسط القارئ تُخفي كل عناصر الواجهة */
+  body.zen header,body.zen .bottom-nav,body.zen .reader-bar,body.zen .reader-progress,
+  body.zen .reader-head,body.zen .to-top,body.zen .reader-end{display:none!important}
+  body.zen main{padding-bottom:0}
+  body.zen .reader{padding-bottom:24px}
+  body.zen .reader.horiz{height:100vh}
+
   /* ================= HERMES-STYLE OVERRIDE (amber terminal) ================= */
   *{border-radius:0 !important}
   ::-webkit-scrollbar-thumb{background:var(--line2)}

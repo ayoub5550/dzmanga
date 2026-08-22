@@ -794,11 +794,23 @@ async function renderReader(chapterId, mangaId, idx, forceVert = false) {
 
     // مناطق نقر على الحواف: يمين = السابق، يسار = التالي (اتجاه عربي)
     const reader = document.getElementById('reader');
+    // وضع القراءة الصافي: نقرة وسط الشاشة تُخفي/تُظهر كل الأزرار والأشرطة
+    const toggleZen = () => {
+      const on = document.body.classList.toggle('zen');
+      if (on && !load('dz_zen_hint_v1', false)) {
+        save('dz_zen_hint_v1', true);
+        toast('وضع القراءة الصافي — اضغط وسط الشاشة لإظهار الأزرار');
+      }
+    };
     reader.addEventListener('click', (e) => {
-      if (mode === 'horiz') return; // السحب هو وسيلة التنقّل هناك
       const x = e.clientX / window.innerWidth;
+      if (mode === 'horiz') {
+        if (x >= 0.3 && x <= 0.7) toggleZen(); // الحواف للسحب/التنقّل
+        return;
+      }
       if (x > 0.85 && prev) location.hash = `#/read/${encodeURIComponent(prev.id)}/${encodeURIComponent(mangaId)}/${i - 1}`;
       else if (x < 0.15 && next) location.hash = `#/read/${encodeURIComponent(next.id)}/${encodeURIComponent(mangaId)}/${i + 1}`;
+      else toggleZen();
     });
 
     // اختصارات لوحة المفاتيح (RTL: السهم الأيسر = التالي)
@@ -1201,6 +1213,7 @@ function renderStaticPage(slug) {
 }
 
 function router() {
+  document.body.classList.remove('zen'); // مغادرة وضع القراءة الصافي عند أي تنقّل
   const hash = location.hash.replace(/^#/, '') || '/';
   const parts = hash.split('/').filter(Boolean).map(decodeURIComponent);
   if (parts.length === 0) return renderHome();
