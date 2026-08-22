@@ -231,3 +231,4 @@ reader-progress/reader-head/to-top/reader-end). الحواف تبقى للتنق
 - نسخة داكنة داخل القارئ عبر body:has(.reader). المفاتيح الخضراء (primary/active) لها ظل #1c5c26.
 - يجب أن تبقى هذه الكتلة آخر شيء في <style> لأنها تتجاوز HERMES/PIXEL بـ !important. SHELL الحالي: dz-shell-v13.
 - أصوات النقرات (2026-08-22): IIFE في نهاية app.js يولّد صوت مفتاح ميكانيكي عبر Web Audio (noise burst + ثوك منخفض) على pointerdown/up لعناصر السمة. بدون ملفات صوت. SHELL: dz-shell-v14.
+- الرئيسية كخلاصة موحّدة (2026-08-22): حُذفت أقسام الرئيسية المنفصلة؛ الرئيسية الآن hero + «تابع القراءة» + خلاصة تمرير لا نهائي واحدة عبر `/api/feed?page=N` (دمج بالتناوب: العاشق latest + Team-X latest + MangaDex latestUploadedChapter مع فلترة readable، كاش 10 دقائق لكل صفحة). العميل يعيد استخدام mountFeed وFEED_CACHE بمفتاح `home|all`. أُضيف أيضاً fallback للأغلفة: فشل بروكسي /img → الرابط المباشر → صورة بديلة (كانت أغلفة MangaDex تظهر سوداء أحياناً). SHELL: dz-shell-v15.

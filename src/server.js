@@ -428,6 +428,62 @@ app.get('/api/home', async (req, res) => {
   });
 });
 
+
+// /api/feed — خلاصة الرئيسية الموحّدة: صفحات «آخر التحديثات» من المصادر الثلاثة
+// (العاشق + Team-X + MangaDex) مدموجة بالتناوب في قائمة واحدة للتمرير اللانهائي.
+// كل صفحة تُخزَّن مؤقتاً حتى لا نعيد ضرب المصادر مع كل زائر.
+const FEED_TTL_MS = 10 * 60 * 1000;
+const feedPageCache = new Map(); // page -> { t, data }
+
+async function mdLatestPage(page) {
+  const limit = 18;
+  const offset = (page - 1) * limit;
+  const url = `${MD_BASE}/manga?limit=${limit}&offset=${offset}&includes[]=cover_art&includes[]=author&order[latestUploadedChapter]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
+  const data = await cachedFetchJson(url);
+  const mapped = data.data.map(mapManga);
+  // نفس فلترة الرئيسية: استبعاد العناوين بلا فصل عربي قابل للقراءة فعلاً
+  const items = await filterReadable(mapped, limit);
+  return { items, hasNext: offset + limit < Math.min(data.total, 9000) };
+}
+
+app.get('/api/feed', async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const hit = feedPageCache.get(page);
+  if (hit && Date.now() - hit.t < FEED_TTL_MS) return res.json(hit.data);
+  const [a, t, m] = await Promise.all([
+    asq.list({ order: 'latest', page }).catch((e) => {
+      console.error('feed 3asq failed:', e.message);
+      return { items: [], hasNext: false };
+    }),
+    tx.list({ page }).catch((e) => {
+      console.error('feed teamx failed:', e.message);
+      return { items: [], hasNext: false };
+    }),
+    mdLatestPage(page).catch((e) => {
+      console.error('feed mangadex failed:', e.message);
+      return { items: [], hasNext: false };
+    }),
+  ]);
+  const lists = [a.items || [], t.items || [], m.items || []];
+  if (!lists.some((l) => l.length)) return res.status(502).json({ error: 'all sources unreachable' });
+  // دمج بالتناوب واستبعاد التكرارات (نفس العنوان قد يظهر من مصدرين بنفس المعرّف فقط)
+  const items = [];
+  const seen = new Set();
+  for (let i = 0; lists.some((l) => i < l.length); i++) {
+    for (const l of lists) {
+      const it = l[i];
+      if (it && !seen.has(it.id)) {
+        seen.add(it.id);
+        items.push(it);
+      }
+    }
+  }
+  const data = { items, page, hasNext: !!(a.hasNext || t.hasNext || m.hasNext) };
+  feedPageCache.set(page, { t: Date.now(), data });
+  if (feedPageCache.size > 60) feedPageCache.delete(feedPageCache.keys().next().value);
+  res.json(data);
+});
+
 // Full-catalog index: dzmanga's "الكل" tab is meant to show literally every
 // MangaDex title that has a readable Arabic chapter — measured 2026-08-17 at
 // ~733 out of 978 ar-tagged titles. Checking that live on every page request
