@@ -208,3 +208,9 @@ IP مختلف تماماً) مع `Accept: application/json`، ثم يفكّ ال
 مواقع اختُبرت ورُفضت (2026-08-22): mangalik.net و like-manga.net (Madara)
 تُرجعان 403 من Cloudflare على `/manga/*`؛ azorafly.com يُرجع 504 على `/series/`؛
 gmanga/swatmanga/teamx.fun نطاقاتها بيعت أو تحوّلت. لا تُعِد تجربتها بلا سبب.
+
+### صفوف Team-X في الرئيسية (2026-08-22)
+`/api/home` يضم مفتاح `tx: { manhwa, manhua }` (أول صفحة من كل نوع، كاش 30 دقيقة،
+فشله لا يُسقط الرئيسية). تُعرض في `renderHome` كصفّين بعد إعلان native.
+تذكير: أي تغيير في `src/public/*` يتطلب رفع `SHELL` في `sw.js` (الآن dz-shell-v10)
+وإلا لن يراه الزوار القدامى — حدث فعلاً مع تبويب Team-X.
