@@ -1331,3 +1331,20 @@ router();
   document.addEventListener('pointerdown', (e) => { if (e.target.closest(SELECTOR)) click(true); }, { passive: true, capture: true });
   document.addEventListener('pointerup', (e) => { if (e.target.closest(SELECTOR)) click(false); }, { passive: true, capture: true });
 })();
+
+/* ارتداد نابضي عند الإفلات: نضيف .key-pop لتشغيل انميشن keyPop/cardPop ثم ننزعه */
+(() => {
+  const POP_SEL =
+    '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a,.card,.live-item,.cont-card';
+  function pop(e) {
+    const el = e.target.closest(POP_SEL);
+    if (!el) return;
+    el.classList.remove('key-pop');
+    void el.offsetWidth; // إعادة تشغيل الانميشن حتى مع النقر السريع المتكرر
+    el.classList.add('key-pop');
+    el.addEventListener('animationend', () => el.classList.remove('key-pop'), { once: true });
+    setTimeout(() => el.classList.remove('key-pop'), 500); // احتياط لو لم يصل animationend
+  }
+  document.addEventListener('pointerup', pop, { passive: true, capture: true });
+  document.addEventListener('pointercancel', pop, { passive: true, capture: true });
+})();

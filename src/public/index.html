@@ -538,6 +538,16 @@
   body:has(.reader) .bottom-nav a:active{box-shadow:0 0 0 #000, inset 0 2px 5px rgba(0,0,0,.6)}
   body:has(.reader) .bottom-nav a.active{background:linear-gradient(180deg,#3a322a 0%,#241f1c 100%);
     color:#f2ecdc;border-color:#5a4d3a;box-shadow:0 4px 0 #000, inset 0 2px 0 rgba(255,255,255,.1);text-shadow:none}
+  /* انميشن ارتداد نابضي عند إفلات المفتاح + ضغطة البطاقات (طلب 2026-08-22) */
+  @keyframes keyPop{0%{transform:translateY(5px)}35%{transform:translateY(-3px) scale(1.04)}60%{transform:translateY(2px)}80%{transform:translateY(-1px)}100%{transform:translateY(0) scale(1)}}
+  .key-pop{animation:keyPop .32s cubic-bezier(.3,1.5,.5,1) both}
+  .card .card-art{transition:transform .1s ease}
+  .card:active .card-art{transform:scale(.94)}
+  .card:active .title{opacity:.75}
+  @keyframes cardPop{0%{transform:scale(.94)}45%{transform:scale(1.05)}75%{transform:scale(.98)}100%{transform:scale(1)}}
+  .card.key-pop{animation:none}
+  .card.key-pop .card-art{animation:cardPop .34s cubic-bezier(.3,1.4,.5,1) both}
+  .live-item:active,.cont-card:active{transform:scale(.96);transition:transform .1s ease}
 </style>
 <script src="/ads.js" defer></script>
 </head>
