@@ -1261,3 +1261,54 @@ function router() {
 window.addEventListener('hashchange', router);
 window.addEventListener('beforeunload', saveCurrentFeedScroll);
 router();
+
+/* ── أصوات مفاتيح الكيبورد (Web Audio، بدون ملفات) ── */
+(() => {
+  let ctx = null;
+  const SELECTOR = '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a';
+  function ac() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function click(down) {
+    const a = ac();
+    if (!a) return;
+    const t = a.currentTime;
+    // نقرة عالية (بلاستيك المفتاح)
+    const len = 0.03;
+    const buf = a.createBuffer(1, Math.ceil(a.sampleRate * len), a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+    const noise = a.createBufferSource();
+    noise.buffer = buf;
+    const bp = a.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = down ? 2400 : 3300;
+    bp.Q.value = 1.6;
+    const g1 = a.createGain();
+    g1.gain.setValueAtTime(down ? 0.22 : 0.12, t);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + len);
+    noise.connect(bp).connect(g1).connect(a.destination);
+    noise.start(t);
+    // «ثوك» منخفض عند الضغط فقط
+    if (down) {
+      const o = a.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(150, t);
+      o.frequency.exponentialRampToValueAtTime(70, t + 0.05);
+      const g2 = a.createGain();
+      g2.gain.setValueAtTime(0.25, t);
+      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      o.connect(g2).connect(a.destination);
+      o.start(t);
+      o.stop(t + 0.07);
+    }
+  }
+  document.addEventListener('pointerdown', (e) => { if (e.target.closest(SELECTOR)) click(true); }, { passive: true, capture: true });
+  document.addEventListener('pointerup', (e) => { if (e.target.closest(SELECTOR)) click(false); }, { passive: true, capture: true });
+})();

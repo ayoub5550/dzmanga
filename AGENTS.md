@@ -230,3 +230,4 @@ reader-progress/reader-head/to-top/reader-end). الحواف تبقى للتنق
 - كتلة CSS «KEYCAP THEME» في نهاية `<style>` بـ index.html: كل الأزرار (.btn/.tab/.src-tab/.mode-toggle/.page-btn/.to-top/.hero-cta) وأيقونات الشريط السفلي (.bottom-nav a) بشكل مفتاح كيبورد كلاسيكي: تدرّج فاتح→غامق + ظل سفلي صلب 5px، وعند الضغط (:active) translateY(5px) + ظل داخلي.
 - نسخة داكنة داخل القارئ عبر body:has(.reader). المفاتيح الخضراء (primary/active) لها ظل #1c5c26.
 - يجب أن تبقى هذه الكتلة آخر شيء في <style> لأنها تتجاوز HERMES/PIXEL بـ !important. SHELL الحالي: dz-shell-v13.
+- أصوات النقرات (2026-08-22): IIFE في نهاية app.js يولّد صوت مفتاح ميكانيكي عبر Web Audio (noise burst + ثوك منخفض) على pointerdown/up لعناصر السمة. بدون ملفات صوت. SHELL: dz-shell-v14.
