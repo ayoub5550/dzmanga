@@ -348,46 +348,50 @@ function continueHtml() {
 
 async function renderHome() {
   setActiveNav('home');
-  // الرئيسية = واجهة البطل + «تابع القراءة» + خلاصة واحدة بتمرير لا نهائي
-  // تجمع آخر تحديثات كل المصادر مدموجة (طلب صاحب الموقع 2026-08-22).
   app.innerHTML = `
     <div class="hero skeleton" style="height:280px;margin:18px 0 8px"></div>
-    <h2 class="section">${icon('sparkle')} كل التحديثات</h2>${skeletonGrid(6)}
+    <h2 class="section">${icon('sparkle')} آخر التحديثات</h2>${skeletonGrid(6)}
   `;
-  let heroBlock = '';
   try {
     const data = await getJson('/api/home');
-    heroBlock = heroHtml(data.hero);
-  } catch (e) {
-    heroBlock = '';
-  }
-  app.innerHTML = `${heroBlock}${continueHtml()}
-    <h2 class="section">${icon('sparkle')} كل التحديثات — مانجا ومانهوا</h2>
-    <div class="ad-slot" data-ad="native"></div>
-    <div id="browseBody"></div>`;
-  if (heroBlock) startHeroRotation();
-  const body = document.getElementById('browseBody');
-  const feedKey = 'home|all';
-  // استرجاع نفس الخلاصة وموضع التمرير عند الرجوع من صفحة مانجا (كما في التصفّح)
-  const cached = FEED_CACHE.get(feedKey);
-  if (cached) {
-    body.innerHTML = cached.html;
-    body.dataset.feedKey = feedKey;
-    body.querySelector('#feedMore')?.addEventListener('click', () => {
-      FEED_CACHE.delete(feedKey);
-      renderHome();
+    const asqData = data.asq || { latest: [], popular: [], genres: [] };
+    const mdData = data.md || { latest: [], popular: [], genres: [] };
+    let html = heroHtml(data.hero);
+    html += continueHtml();
+    html += sectionHtml('sparkle', 'آخر التحديثات — مانجا العاشق', asqData.latest, {
+      href: '#/browse/asq/latest',
+      label: 'الكل',
     });
-    if (cached.y > 0) {
-      let tries = 0;
-      const restore = () => {
-        window.scrollTo({ top: cached.y });
-        if (++tries < 25 && Math.abs(window.scrollY - cached.y) > 4) setTimeout(restore, 100);
-      };
-      requestAnimationFrame(restore);
+    html += sectionHtml('fire', 'الأكثر شعبية — مانجا العاشق', asqData.popular, {
+      href: '#/browse/asq/popular',
+      label: 'الكل',
+    });
+    html += '<div class="ad-slot" data-ad="native"></div>';
+    const txData = data.tx || { manhwa: [], manhua: [] };
+    html += sectionHtml('sword', 'مانهوا كورية — Team-X', txData.manhwa, {
+      href: '#/browse/tx/manhwa',
+      label: 'الكل',
+    });
+    html += sectionHtml('portal', 'مانها صينية — Team-X', txData.manhua, {
+      href: '#/browse/tx/manhua',
+      label: 'الكل',
+    });
+    for (const g of asqData.genres || []) {
+      html += sectionHtml(genreIconName(g.key), g.label, g.items, {
+        href: `#/browse/asq/genre-${g.key}`,
+        label: 'الكل',
+      });
     }
-    return;
+    html += sectionHtml('sparkle', 'آخر التحديثات — MangaDex', mdData.latest, {
+      href: '#/browse/md',
+      label: 'الكل',
+    });
+    html += sectionHtml('fire', 'الأكثر شعبية — MangaDex', mdData.popular);
+    app.innerHTML = html;
+    startHeroRotation();
+  } catch (e) {
+    app.innerHTML = errorHtml('تعذّر الوصول إلى المصادر. حاول مجدداً بعد قليل.', renderHome);
   }
-  mountFeed(body, feedKey, (page) => getJson(`/api/feed?page=${page}`));
 }
 
 function genreIconName(key) {
