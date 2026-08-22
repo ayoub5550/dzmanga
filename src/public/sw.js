@@ -2,7 +2,7 @@
    - قوقعة التطبيق (HTML/JS/الأيقونات): stale-while-revalidate.
    - صور الفصول والأغلفة (/img): cache-first مع سقف للعناصر.
    - طلبات /api: لا تُخزَّن هنا (للخادم كاش خاص به وبيانات متغيّرة). */
-const SHELL = 'dz-shell-v7';
+const SHELL = 'dz-shell-v8';
 const IMGS = 'dz-img-v1';
 const SHELL_FILES = ['/', '/app.js', '/manifest.json', '/favicon-32.png', '/icon-192.png'];
 const IMG_LIMIT = 400;
