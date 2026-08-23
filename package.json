@@ -2,6 +2,7 @@
   "name": "dzmanga",
   "version": "1.0.0",
   "private": true,
+  "homepage": "https://www.dzmanga.dpdns.org/",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js"
