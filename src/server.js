@@ -182,7 +182,42 @@ function mapManga(m) {
 // to understand the premise", not publication-grade. Only called for the
 // single manga a user actually opens (never for list/browse endpoints),
 // and cached indefinitely per manga id to stay within the free quota.
+// تخزين دائم على القرص (2026-08-26): كان الكاش في الذاكرة فقط، فكل إعادة
+// تشغيل للسيرفر (بعد كل نشر) كانت تمسح كل الترجمات المُنجزة وتُجبر إعادة
+// طلبها من MyMemory — هذا كان يستهلك حصة MyMemory المجانية اليومية (منخفضة
+// جداً لعناوين IP بدون تسجيل) بسرعة، فيفشل التحويل لمعظم اليوم وتظهر أوصاف
+// إنجليزية خام لأغلب صفحات MangaDex بدل العربية. الحل: كاش على ملف JSON
+// يُحمَّل عند الإقلاع ويُحفَظ بعد كل ترجمة ناجحة، فلا تُفقد الترجمات بين
+// عمليات إعادة التشغيل/النشر.
+const TRANSLATION_CACHE_FILE = path.join(__dirname, '..', 'data', 'translation-cache.json');
 const translationCache = new Map(); // mangaId -> arabic text
+(function loadTranslationCache() {
+  try {
+    const raw = require('fs').readFileSync(TRANSLATION_CACHE_FILE, 'utf8');
+    const obj = JSON.parse(raw);
+    for (const [k, v] of Object.entries(obj)) translationCache.set(k, v);
+    console.log(`translation cache: loaded ${translationCache.size} entries from disk`);
+  } catch (e) {
+    console.log('translation cache: no existing file, starting fresh');
+  }
+})();
+let saveTimer = null;
+function persistTranslationCache() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      require('fs').mkdirSync(path.dirname(TRANSLATION_CACHE_FILE), { recursive: true });
+      require('fs').writeFileSync(TRANSLATION_CACHE_FILE, JSON.stringify(Object.fromEntries(translationCache)));
+    } catch (e) {
+      console.error('failed to persist translation cache:', e.message);
+    }
+  }, 2000); // debounce — لا نكتب الملف عند كل ترجمة منفردة
+}
+
+// إن أعلن MyMemory أن الحصة اليومية انتهت (429/quotaFinished)، نتوقف عن
+// الطلب لبقية عملية التشغيل بدل تكرار محاولات فاشلة على كل صفحة يفتحها
+// الزوار (كل محاولة فاشلة كانت ترفع زمن استجابة صفحة المانجا بلا فائدة).
+let quotaExhaustedUntilRestart = false;
 
 function splitIntoChunks(text, maxLen = 480) {
   const sentences = text.split(/(?<=[.!?\n])\s+/);
@@ -201,10 +236,16 @@ function splitIntoChunks(text, maxLen = 480) {
 }
 
 async function translateChunk(text) {
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ar`;
+  const email = process.env.MYMEMORY_EMAIL ? `&de=${encodeURIComponent(process.env.MYMEMORY_EMAIL)}` : '';
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ar${email}`;
   const res = await fetch(url, { headers: { 'User-Agent': 'dzmanga/1.0' } });
+  if (res.status === 429) { quotaExhaustedUntilRestart = true; throw new Error('translate 429 (quota)'); }
   if (!res.ok) throw new Error(`translate ${res.status}`);
   const data = await res.json();
+  if (data.responseStatus === 429 || /USED ALL AVAILABLE FREE/i.test(data.responseDetails || '')) {
+    quotaExhaustedUntilRestart = true;
+    throw new Error('translate quota exhausted for today');
+  }
   if (data.responseStatus && data.responseStatus !== 200) throw new Error('translate quota/error');
   return data.responseData?.translatedText || text;
 }
@@ -212,6 +253,7 @@ async function translateChunk(text) {
 async function translateDescriptionToArabic(mangaId, englishText) {
   if (!englishText) return englishText;
   if (translationCache.has(mangaId)) return translationCache.get(mangaId);
+  if (quotaExhaustedUntilRestart) return englishText; // تجنّب طلبات فاشلة مؤكدة
   try {
     const chunks = splitIntoChunks(englishText);
     const translated = [];
@@ -220,6 +262,7 @@ async function translateDescriptionToArabic(mangaId, englishText) {
     }
     const full = translated.join(' ');
     translationCache.set(mangaId, full);
+    persistTranslationCache();
     return full;
   } catch (e) {
     console.error('translation failed, falling back to English:', e.message);
@@ -954,6 +997,20 @@ app.get('/', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=600').type('html').send(html);
 });
 
+// وصف الميتا يُستخدم كـsnippet في نتائج البحث العربية — لازم يكون عربي
+// ويمثّل dzmanga نفسه. وصف MangaDex الخام إنجليزي دائماً، ووصف بعض صفحات
+// العاشق (عند فشل استخراج القسم المخصص) يرجع فيه نص العاشق التسويقي نفسه
+// ("...على موقع العاشق للمانجا") — الاثنان يفسدان الـSEO/العلامة، فنستبدلهما
+// بقالب عربي يذكر dzmanga دائماً. (اكتُشف 2026-08-26 في فحص SEO شامل.)
+const HAS_ARABIC = /[\u0600-\u06FF]/;
+const SOURCE_BRAND_LEAK = /العاشق|3asq|mangadex\.org/i;
+function safeMetaDescription(rawDesc, title) {
+  const fallback = `اقرأ مانجا ${title} مترجمة للعربية مجاناً على dzmanga — قارئ سريع وخفيف بدون تسجيل.`;
+  const d = String(rawDesc || '').trim();
+  if (!d || !HAS_ARABIC.test(d) || SOURCE_BRAND_LEAK.test(d)) return fallback;
+  return d;
+}
+
 app.get('/manga/:id', async (req, res) => {
   const id = req.params.id;
   let html = INDEX_HTML();
@@ -961,7 +1018,7 @@ app.get('/manga/:id', async (req, res) => {
   try {
     const m = await loadMangaDetail(id);
     const title = `${m.title} — اقرأ بالعربية مجاناً | dzmanga`;
-    const desc = String(m.description || `اقرأ مانجا ${m.title} مترجمة للعربية مجاناً على dzmanga.`).slice(0, 300);
+    const desc = safeMetaDescription(m.description, m.title).slice(0, 300);
     const pageUrl = `${PUBLIC_ORIGIN}/manga/${encodeURIComponent(id)}`;
     const img = m.cover ? (m.cover.startsWith('http') ? m.cover : PUBLIC_ORIGIN + m.cover) : `${PUBLIC_ORIGIN}/icon-512.png`;
     const ld = {
