@@ -53,7 +53,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: true }));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: true, index: false }));
 app.use(express.json());
 
 // simple in-memory cache to keep things fast + light on MangaDex rate limits
@@ -856,6 +856,62 @@ const INDEX_HTML = () => require('fs').readFileSync(path.join(__dirname, 'public
 const escHtml = (s = '') => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const escXml = escHtml;
 
+// ---------------------------------------------------------------------------
+// روابط زحف حقيقية (crawl links) — أُضيفت 2026-08-26 بعد تقرير GSC: الروابط
+// الداخلية كانت كلها #/hash (JS-only)، فجوجل يعرف صفحات /manga/:id فقط من
+// sitemap.xml (بطيء الاكتشاف). الحل: نحقن <a href="/manga/ID"> **حقيقية** في
+// الـHTML الخام القادم من السيرفر (نفس الروابط اللي التطبيق نفسه يقدّمها
+// للمستخدم عبر الكروت، فقط مصدرها هنا HTML ثابت لا JS) — مخفية بصرياً بتقنية
+// sr-only القياسية (لا display:none، نفس أسلوب روابط "تجاوز إلى المحتوى")
+// وليست محتوى مختلفاً عن الذي يراه المستخدم، فهي ليست cloaking.
+// لا تحذف هذه الدوال ولا العلامة <!--CRAWL_LINKS--> في index.html.
+const SR_ONLY_STYLE =
+  'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;';
+
+function crawlLinksNav(items, label) {
+  if (!items || !items.length) return '';
+  const links = items
+    .map((m) => `<a href="/manga/${encodeURIComponent(m.id)}">${escHtml(m.title || m.id)}</a>`)
+    .join('');
+  return `<nav class="crawl-links" aria-label="${escHtml(label)}" style="${SR_ONLY_STYLE}">${links}</nav>`;
+}
+
+function shufflePick(arr, n) {
+  const copy = arr.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+// Combined, deduped pool: 3asq home lists (always available immediately) +
+// the MangaDex fullCatalog (empty for ~1min right after a restart — see
+// AGENTS.md). Both crawl-links routes below draw from this same pool.
+async function crawlCandidatePool() {
+  const seen = new Set();
+  const out = [];
+  const asqHome = await cachedAsqHome().catch(() => null);
+  for (const list of [asqHome?.popular, asqHome?.latest]) {
+    for (const m of list || []) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      out.push(m);
+    }
+  }
+  for (const m of fullCatalog.items) {
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
+    out.push(m);
+  }
+  return out;
+}
+
+async function topCrawlItems(limit) {
+  const pool = await crawlCandidatePool();
+  return pool.slice(0, limit);
+}
+
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /img\n\nSitemap: ${PUBLIC_ORIGIN}/sitemap.xml\n`);
 });
@@ -886,9 +942,22 @@ app.get('/sitemap.xml', async (req, res) => {
   }
 });
 
+app.get('/', async (req, res) => {
+  let html = INDEX_HTML();
+  try {
+    const top = await topCrawlItems(90);
+    html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(top, 'روابط سريعة لأشهر المانجا'));
+  } catch (e) {
+    console.error('homepage crawl links failed:', e.message);
+    html = html.replace('<!--CRAWL_LINKS-->', '');
+  }
+  res.set('Cache-Control', 'public, max-age=600').type('html').send(html);
+});
+
 app.get('/manga/:id', async (req, res) => {
   const id = req.params.id;
   let html = INDEX_HTML();
+  let related = [];
   try {
     const m = await loadMangaDetail(id);
     const title = `${m.title} — اقرأ بالعربية مجاناً | dzmanga`;
@@ -921,9 +990,12 @@ app.get('/manga/:id', async (req, res) => {
 <meta name="twitter:image" content="${escHtml(img)}" />
 <script type="application/ld+json">${JSON.stringify(ld)}</script>`;
     html = html.replace(/<!--SEO:START-->[\s\S]*?<!--SEO:END-->/, `<!--SEO:START-->${head}\n<!--SEO:END-->`);
+    const pool = await crawlCandidatePool();
+    related = shufflePick(pool.filter((x) => x.id !== id), 5);
   } catch (e) {
     console.error('seo page failed for', id, e.message); // fall through: serve default head
   }
+  html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(related, 'أعمال مشابهة'));
   // open the right SPA view for human visitors (bots just read the meta)
   html = html.replace(
     '</head>',
@@ -937,7 +1009,8 @@ app.get('/manga/:id', async (req, res) => {
 // بالـSEO. المسارات الصالحة كلها معالجة فوق هذا السطر (/, static, /api/*,
 // /img, /manga/:id, robots, sitemap) — فكل ما يصل هنا هو فعلاً غير موجود.
 app.get('*', (req, res) => {
-  res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
+  const html = INDEX_HTML().replace('<!--CRAWL_LINKS-->', '');
+  res.status(404).type('html').send(html);
 });
 
 app.listen(PORT, () => {
