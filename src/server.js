@@ -568,7 +568,9 @@ async function buildFullCatalog() {
       total = data.total;
       const mapped = data.data.map(mapManga);
       const flags = await mapWithConcurrency(mapped, 5, (m) => hasReadableArabicChapter(m.id));
-      mapped.forEach((m, i) => flags[i] && items.push(m));
+      // فلترة دفاعية: عناصر بلا id فعلي (استجابة MangaDex ناقصة/عطلانة نادراً)
+      // ما تدخلش الفهرس — لتفادي روابط <a href="/manga/null"> تتولّد لاحقاً.
+      mapped.forEach((m, i) => flags[i] && m.id && items.push(m));
       offset += RAW_PAGE;
       await sleep(600); // spread load across MangaDex pages instead of bursting
     }
@@ -682,7 +684,18 @@ app.get('/api/search', async (req, res) => {
 
 // Shared by /api/manga/:id (JSON for the SPA) and /manga/:id (SEO HTML for
 // crawlers) — keep the two in sync by loading through this single helper.
+// حماية: 'null'/'undefined'/فارغ يمكن أن تصل هنا كـid حرفي (مثلاً رابط
+// <a href="/manga/${m.id}"> تولّد من عنصر فقد id فعلياً) — بدون هذا الفحص
+// كنا نرسل طلب حقيقي إلى MangaDex بمعرّف "null" فيفشل بـ404، ونكرّر هذا
+// لكل زائر/بوت يفتح الرابط الفاسد. (اكتُشف 2026-08-26 عبر journalctl: نفس
+// الخطأ يتكرر كل 15-40 دقيقة من زحف meta-externalagent على /manga/null.)
+const INVALID_ID = /^(null|undefined)?$/i;
 async function loadMangaDetail(id) {
+  if (INVALID_ID.test(id)) {
+    const e = new Error('invalid manga id');
+    e.status = 404;
+    throw e;
+  }
   if (id.startsWith('asq:')) return asq.detail(id.slice(4));
   if (id.startsWith('tx:')) return tx.detail(id.slice(3));
   const url = `${MD_BASE}/manga/${id}?includes[]=cover_art&includes[]=author`;
@@ -699,6 +712,7 @@ app.get('/api/manga/:id', async (req, res) => {
   try {
     res.json(await loadMangaDetail(req.params.id));
   } catch (e) {
+    if (e.status === 404) return res.status(404).json({ error: 'manga not found' });
     console.error(e);
     res.status(502).json({ error: 'failed to load manga' });
   }
@@ -914,6 +928,7 @@ const SR_ONLY_STYLE =
 function crawlLinksNav(items, label) {
   if (!items || !items.length) return '';
   const links = items
+    .filter((m) => m && m.id) // دفاعي: عنصر بلا id يولّد رابط /manga/null فاسد
     .map((m) => `<a href="/manga/${encodeURIComponent(m.id)}">${escHtml(m.title || m.id)}</a>`)
     .join('');
   return `<nav class="crawl-links" aria-label="${escHtml(label)}" style="${SR_ONLY_STYLE}">${links}</nav>`;
@@ -937,13 +952,13 @@ async function crawlCandidatePool() {
   const asqHome = await cachedAsqHome().catch(() => null);
   for (const list of [asqHome?.popular, asqHome?.latest]) {
     for (const m of list || []) {
-      if (seen.has(m.id)) continue;
+      if (!m.id || seen.has(m.id)) continue;
       seen.add(m.id);
       out.push(m);
     }
   }
   for (const m of fullCatalog.items) {
-    if (seen.has(m.id)) continue;
+    if (!m.id || seen.has(m.id)) continue;
     seen.add(m.id);
     out.push(m);
   }
@@ -967,9 +982,9 @@ app.get('/sitemap.xml', async (req, res) => {
       urls.set(`${PUBLIC_ORIGIN}/`, '1.0');
       const asqHome = await cachedAsqHome().catch(() => null);
       for (const list of [asqHome?.popular, asqHome?.latest]) {
-        for (const m of list || []) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.8');
+        for (const m of list || []) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.8');
       }
-      for (const m of fullCatalog.items) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.6');
+      for (const m of fullCatalog.items) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.6');
       const body = [...urls.entries()]
         .map(([loc, pr]) => `<url><loc>${escXml(loc)}</loc><priority>${pr}</priority></url>`)
         .join('\n');
@@ -1050,6 +1065,11 @@ app.get('/manga/:id', async (req, res) => {
     const pool = await crawlCandidatePool();
     related = shufflePick(pool.filter((x) => x.id !== id), 5);
   } catch (e) {
+    // معرّف فاسد فعلياً (null/undefined/فارغ) — رابط تالف، ليس عملاً حقيقياً
+    // اختفى مؤقتاً. نرجّع 404 حقيقي بدل 200 حتى ما يفهرسه جوجل كصفحة صالحة.
+    if (e.status === 404) {
+      return res.status(404).type('html').send(INDEX_HTML().replace('<!--CRAWL_LINKS-->', ''));
+    }
     console.error('seo page failed for', id, e.message); // fall through: serve default head
   }
   html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(related, 'أعمال مشابهة'));
