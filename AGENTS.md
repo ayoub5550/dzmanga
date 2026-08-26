@@ -333,3 +333,28 @@ reader-progress/reader-head/to-top/reader-end). الحواف تبقى للتنق
 - **`sourceLabel: 'MangaDex'`** أُضيف في `mapManga` — نفس مفتاح asq/Team-X.
 - **CDN/Cloudflare ما زال ناقصاً**: dpdns.org سبدومين مجاني لا يمكن وضعه خلف
   Cloudflare (يتطلب ملكية الـzone). مرهون بشراء دومين (اقتُرح dzmanga.xyz/.net).
+
+## بحث أخطاء عبر journalctl (2026-08-26 مساءً)
+
+طلب صاحب المشروع البحث عن أخطاء حقيقية في السيرفر وإصلاحها. الطريقة:
+`journalctl -u dzmanga` على الـVPS مباشرة (وليس تخمين من الكود فقط) —
+اتضح أن أعراض الكود ("seo page failed for null") كانت **حقيقية ومتكررة**
+كل 15-40 دقيقة منذ 2026-08-26 11:05، وليست وهماً.
+
+1. **[أُصلح] `/manga/null` يرجّع 200 بدل 404 ويستهلك طلب MangaDex حقيقي في
+   كل مرة.** السبب: أي عنصر بلا `id` فعلي (مثلاً استجابة MangaDex ناقصة
+   نادراً) يولّد رابطاً `<a href="/manga/null">` عبر `crawlLinksNav`/
+   `sitemap.xml`/`crawlCandidatePool`، وبوتات مثل `meta-externalagent`
+   (فيسبوك) تتبعه دورياً. `loadMangaDetail()` الآن ترفض `null`/`undefined`/
+   فارغ فوراً (بدون طلب شبكة) وترمي خطأ `status=404`؛ `/manga/:id` و
+   `/api/manga/:id` يرجّعان 404 حقيقي بدل 200/502. أُضيفت أيضاً تصفية
+   دفاعية (`m.id &&`) في نقاط بناء القوائم الأربع حتى لا يتكرر السبب
+   الجذري لو رجعت MangaDex عنصراً ناقصاً مستقبلاً. Commit `8e32c75`.
+2. **[لا حاجة لتغيير — طبيعي]** `RangeNotSatisfiableError` من `send`
+   (Slackbot-LinkExpanding يرسل Range header فاسد على `/`) — Express
+   يرجّع 416 بشكل صحيح تلقائياً، فقط طباعة stack trace في اللوق. غير ضار.
+3. **[معروف مسبقاً، لا جديد]** `translation failed: translate 429` ما زال
+   يظهر مرة واحدة فوراً بعد كل إعادة تشغيل (الحصة اليومية لـMyMemory
+   مستهلكة مسبقاً) ثم يتوقف — هذا هو السلوك المتوقع من إصلاح 2026-08-26
+   الصباحي (`quotaExhaustedUntilRestart`)، وليس عطلاً جديداً. لا حل جذري
+   بدون `MYMEMORY_EMAIL` (لم يُوفَّر بعد).
