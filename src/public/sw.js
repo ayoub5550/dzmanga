@@ -2,13 +2,15 @@
    - قوقعة التطبيق (HTML/JS/الأيقونات): stale-while-revalidate.
    - صور الفصول والأغلفة (/img): cache-first مع سقف للعناصر.
    - طلبات /api: لا تُخزَّن هنا (للخادم كاش خاص به وبيانات متغيّرة). */
-const SHELL = 'dz-shell-v6';
+const SHELL = 'dz-shell-v20';
 const IMGS = 'dz-img-v1';
 const SHELL_FILES = ['/', '/app.js', '/manifest.json', '/favicon-32.png', '/icon-192.png'];
 const IMG_LIMIT = 400;
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()).catch(() => self.skipWaiting()));
+  // cache:'reload' يتجاوز كاش HTTP للمتصفح — بدونه قد يخزّن SW الجديد نسخاً
+  // قديمة من app.js (كانت max-age=3600) رغم رفع رقم SHELL.
+  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()).catch(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

@@ -2,6 +2,12 @@ const express = require('express');
 const zlib = require('zlib');
 const path = require('path');
 const asq = require('./sources/asq');
+const tx = require('./sources/teamx');
+const sharp = require('sharp');
+
+// حدود ضغط الصور في بروكسي /img (انظر التعليق هناك)
+const IMG_MAX_WIDTH = parseInt(process.env.IMG_MAX_WIDTH, 10) || 1080;
+const IMG_WEBP_QUALITY = parseInt(process.env.IMG_WEBP_QUALITY, 10) || 78;
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -161,6 +167,9 @@ function mapManga(m) {
     cover: coverUrl(m.id, coverRel?.attributes?.fileName),
     author: authorRel?.attributes?.name || null,
     source: 'md',
+    // نفس المفتاح الذي يرجعه محوّلا asq وTeam-X — بدونه كانت شارة المصدر
+    // تطلع فارغة لعناوين MangaDex في أي عميل يعتمد على الـAPI مباشرة.
+    sourceLabel: 'MangaDex',
   };
 }
 
@@ -369,10 +378,37 @@ function cachedMdHome() {
   return homeCache.inflight;
 }
 
-// /api/home يجمع المصدرين. أي مصدر يفشل يُرجع فارغاً بدل إسقاط الصفحة كلها
+// Team-X home rows (manhwa + manhua, first page of each) — cheap, so 30 min TTL.
+const TX_HOME_TTL_MS = 30 * 60 * 1000;
+let txHomeCache = { data: null, t: 0, inflight: null };
+async function buildTxHome() {
+  const [manhwa, manhua] = await Promise.all([
+    tx.list({ type: 'manhwa' }),
+    tx.list({ type: 'manhua' }),
+  ]);
+  return { manhwa: manhwa.items, manhua: manhua.items };
+}
+function cachedTxHome() {
+  const fresh = txHomeCache.data && Date.now() - txHomeCache.t < TX_HOME_TTL_MS;
+  if (fresh) return Promise.resolve(txHomeCache.data);
+  if (!txHomeCache.inflight) {
+    txHomeCache.inflight = buildTxHome()
+      .then((data) => {
+        txHomeCache = { data, t: Date.now(), inflight: null };
+        return data;
+      })
+      .catch((e) => {
+        txHomeCache.inflight = null;
+        throw e;
+      });
+  }
+  return txHomeCache.inflight;
+}
+
+// /api/home يجمع المصادر الثلاثة. أي مصدر يفشل يُرجع فارغاً بدل إسقاط الصفحة كلها
 // (3asq و MangaDex ينقطعان أحياناً بشكل مستقل).
 app.get('/api/home', async (req, res) => {
-  const [asqHome, mdHome] = await Promise.all([
+  const [asqHome, mdHome, txHome] = await Promise.all([
     cachedAsqHome().catch((e) => {
       console.error('3asq home failed:', e.message);
       return null;
@@ -381,18 +417,83 @@ app.get('/api/home', async (req, res) => {
       console.error('mangadex home failed:', e.message);
       return null;
     }),
+    cachedTxHome().catch((e) => {
+      console.error('teamx home failed:', e.message);
+      return null;
+    }),
   ]);
   if (!asqHome && !mdHome) return res.status(502).json({ error: 'both sources unreachable' });
   const hero = (asqHome?.popular || []).slice(0, 6);
+  // كاش على مستوى المتصفح/nginx: الرئيسية تُبنى من كاشات داخلية أصلاً،
+  // فلا داعي أن يضرب كل زائر السيرفر — 3 دقائق توازن جيد بين الطزاجة والحمل.
+  res.set('Cache-Control', 'public, max-age=180');
   res.json({
     hero: hero.length ? hero : mdHome?.hero || [],
     asq: asqHome || { latest: [], popular: [], genres: [] },
+    tx: txHome || { manhwa: [], manhua: [] },
     md: mdHome || { popular: [], latest: [], genres: [] },
     // مفاتيح قديمة للتوافق مع أي عميل لم يُحدَّث بعد
     popular: mdHome?.popular || [],
     latest: mdHome?.latest || [],
     genres: mdHome?.genres || [],
   });
+});
+
+
+// /api/feed — خلاصة الرئيسية الموحّدة: صفحات «آخر التحديثات» من المصادر الثلاثة
+// (العاشق + Team-X + MangaDex) مدموجة بالتناوب في قائمة واحدة للتمرير اللانهائي.
+// كل صفحة تُخزَّن مؤقتاً حتى لا نعيد ضرب المصادر مع كل زائر.
+const FEED_TTL_MS = 10 * 60 * 1000;
+const feedPageCache = new Map(); // page -> { t, data }
+
+async function mdLatestPage(page) {
+  const limit = 18;
+  const offset = (page - 1) * limit;
+  const url = `${MD_BASE}/manga?limit=${limit}&offset=${offset}&includes[]=cover_art&includes[]=author&order[latestUploadedChapter]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=${LANG}`;
+  const data = await cachedFetchJson(url);
+  const mapped = data.data.map(mapManga);
+  // نفس فلترة الرئيسية: استبعاد العناوين بلا فصل عربي قابل للقراءة فعلاً
+  const items = await filterReadable(mapped, limit);
+  return { items, hasNext: offset + limit < Math.min(data.total, 9000) };
+}
+
+app.get('/api/feed', async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  res.set('Cache-Control', 'public, max-age=300'); // نفس منطق /api/home — كاش داخلي 10 دقائق أصلاً
+  const hit = feedPageCache.get(page);
+  if (hit && Date.now() - hit.t < FEED_TTL_MS) return res.json(hit.data);
+  const [a, t, m] = await Promise.all([
+    asq.list({ order: 'latest', page }).catch((e) => {
+      console.error('feed 3asq failed:', e.message);
+      return { items: [], hasNext: false };
+    }),
+    tx.list({ page }).catch((e) => {
+      console.error('feed teamx failed:', e.message);
+      return { items: [], hasNext: false };
+    }),
+    mdLatestPage(page).catch((e) => {
+      console.error('feed mangadex failed:', e.message);
+      return { items: [], hasNext: false };
+    }),
+  ]);
+  const lists = [a.items || [], t.items || [], m.items || []];
+  if (!lists.some((l) => l.length)) return res.status(502).json({ error: 'all sources unreachable' });
+  // دمج بالتناوب واستبعاد التكرارات (نفس العنوان قد يظهر من مصدرين بنفس المعرّف فقط)
+  const items = [];
+  const seen = new Set();
+  for (let i = 0; lists.some((l) => i < l.length); i++) {
+    for (const l of lists) {
+      const it = l[i];
+      if (it && !seen.has(it.id)) {
+        seen.add(it.id);
+        items.push(it);
+      }
+    }
+  }
+  const data = { items, page, hasNext: !!(a.hasNext || t.hasNext || m.hasNext) };
+  feedPageCache.set(page, { t: Date.now(), data });
+  if (feedPageCache.size > 60) feedPageCache.delete(feedPageCache.keys().next().value);
+  res.json(data);
 });
 
 // Full-catalog index: dzmanga's "الكل" tab is meant to show literally every
@@ -454,6 +555,19 @@ app.get('/api/browse', async (req, res) => {
       return res.status(502).json({ error: 'failed to load 3asq' });
     }
   }
+  if ((req.query.source || '') === 'tx') {
+    // Team-X: مانهوا كورية / مانها صينية. `view` يحدّد النوع أو التصنيف.
+    try {
+      const view = req.query.view || 'manhwa';
+      const genreDef = tx.GENRES.find((g) => g.key === view);
+      const type = tx.TYPES[view] ? view : genreDef ? null : 'manhwa';
+      const data = await tx.list({ page, type, genre: genreDef ? genreDef.slug : null });
+      return res.json({ items: data.items, page: data.page, hasNext: data.hasNext, source: 'tx' });
+    } catch (e) {
+      console.error('teamx browse failed:', e.message);
+      return res.status(502).json({ error: 'failed to load teamx' });
+    }
+  }
   if (!fullCatalog.items.length) {
     // Index not ready yet (first ~30s after a restart) — kick off the build
     // and tell the client to retry shortly instead of blocking the request.
@@ -497,9 +611,13 @@ app.get('/api/search', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.json({ results: [] });
   // بحث موحّد في المصدرين: نتائج "مانجا العاشق" أولاً (عربية أصلية) ثم MangaDex.
-  const [asqResults, mdResults] = await Promise.all([
+  const [asqResults, txResults, mdResults] = await Promise.all([
     asq.search(q).catch((e) => {
       console.error('3asq search failed:', e.message);
+      return [];
+    }),
+    tx.search(q).catch((e) => {
+      console.error('teamx search failed:', e.message);
       return [];
     }),
     (async () => {
@@ -511,13 +629,19 @@ app.get('/api/search', async (req, res) => {
       return [];
     }),
   ]);
-  res.json({ results: [...asqResults, ...mdResults], asq: asqResults, md: mdResults });
+  res.json({
+    results: [...asqResults, ...txResults, ...mdResults],
+    asq: asqResults,
+    tx: txResults,
+    md: mdResults,
+  });
 });
 
 // Shared by /api/manga/:id (JSON for the SPA) and /manga/:id (SEO HTML for
 // crawlers) — keep the two in sync by loading through this single helper.
 async function loadMangaDetail(id) {
   if (id.startsWith('asq:')) return asq.detail(id.slice(4));
+  if (id.startsWith('tx:')) return tx.detail(id.slice(3));
   const url = `${MD_BASE}/manga/${id}?includes[]=cover_art&includes[]=author`;
   const data = await cachedFetchJson(url);
   const manga = mapManga(data.data);
@@ -538,6 +662,14 @@ app.get('/api/manga/:id', async (req, res) => {
 });
 
 app.get('/api/manga/:id/chapters', async (req, res) => {
+  if (req.params.id.startsWith('tx:')) {
+    try {
+      return res.json({ chapters: await tx.chapters(req.params.id.slice(3)) });
+    } catch (e) {
+      console.error('teamx chapters failed:', e.message);
+      return res.status(502).json({ error: 'failed to load chapters' });
+    }
+  }
   if (req.params.id.startsWith('asq:')) {
     try {
       const chapters = await asq.chapters(req.params.id.slice(4));
@@ -581,6 +713,16 @@ app.get('/api/manga/:id/chapters', async (req, res) => {
 });
 
 app.get('/api/chapter/:id/pages', async (req, res) => {
+  if (req.params.id.startsWith('tx:')) {
+    // شكل المعرّف: tx:<series-slug>:<chapter-number>
+    const [, slug, num] = req.params.id.split(':');
+    try {
+      return res.json({ pages: await tx.pages(slug, num) });
+    } catch (e) {
+      console.error('teamx pages failed:', e.message);
+      return res.status(502).json({ error: 'failed to load pages' });
+    }
+  }
   if (req.params.id.startsWith('asq:')) {
     // شكل المعرّف: asq:<manga-slug>:<chapter-slug>
     const [, slug, chapterSlug] = req.params.id.split(':');
@@ -622,7 +764,8 @@ app.get('/api/chapter/:id/pages', async (req, res) => {
 // Image proxy: avoids client-side CORS/hotlink issues, keeps requests light via caching
 app.get('/img', async (req, res) => {
   const u = req.query.u;
-  const allowed = u && u.startsWith('https://') && (u.includes('mangadex') || asq.isAsqImage(u));
+  const allowed =
+    u && u.startsWith('https://') && (u.includes('mangadex') || asq.isAsqImage(u) || tx.isTxImage(u));
   if (!allowed) {
     return res.status(400).send('bad url');
   }
@@ -631,20 +774,48 @@ app.get('/img', async (req, res) => {
     // succeed but the response never arrives, which would otherwise hang
     // this request for a long time before falling back to the redirect.
     const isAsq = asq.isAsqImage(u);
+    const isTx = tx.isTxImage(u);
     const upstream = await fetch(u, {
-      headers: isAsq
+      headers: isTx
+        ? {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            Referer: `${tx.BASE}/`,
+          }
+        : isAsq
         ? {
             'User-Agent':
               'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
             Referer: `${asq.BASE}/`,
           }
         : { 'User-Agent': 'dzmanga/1.0' },
-      signal: AbortSignal.timeout(isAsq ? 15000 : 6000),
+      signal: AbortSignal.timeout(isAsq || isTx ? 15000 : 6000),
     });
     if (!upstream.ok) return res.status(upstream.status).end();
-    res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=604800, immutable');
     const buf = Buffer.from(await upstream.arrayBuffer());
+    res.set('Cache-Control', 'public, max-age=604800, immutable');
+    // ضغط الصور (2026-08-22): صفحات الفصول من المصادر تصل بأحجام ضخمة
+    // (قيست صفحات 2-6MB — فصل واحد ~40-50MB!). قاتل للزوار على داتا موبايل
+    // في الجزائر ويأكل bandwidth السيرفر. نحوّل لـWebP بعرض أقصى 1080px
+    // (أعرض من أي شاشة موبايل، والقارئ لا يعرض أعرض من ذلك أصلاً).
+    // ?raw=1 يتجاوز الضغط إن احتجنا الأصل يوماً. إذا فشل sharp (صورة
+    // معطوبة/صيغة غريبة) نرجع الأصل كما كان — لا شاشة بيضاء أبداً.
+    if (req.query.raw !== '1') {
+      try {
+        const out = await sharp(buf, { failOn: 'none' })
+          .resize({ width: IMG_MAX_WIDTH, withoutEnlargement: true })
+          .webp({ quality: IMG_WEBP_QUALITY })
+          .toBuffer();
+        // نادراً يكون الأصل أصغر (أيقونات صغيرة مثلاً) — نرسل الأصغر دائماً
+        if (out.length < buf.length) {
+          res.set('Content-Type', 'image/webp');
+          return res.send(out);
+        }
+      } catch (e) {
+        console.error('img resize failed (serving original):', e.message);
+      }
+    }
+    res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
     res.send(buf);
   } catch (e) {
     // Server-side fetch failed — most likely the same network-level IP
@@ -761,8 +932,12 @@ app.get('/manga/:id', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=600').type('html').send(html);
 });
 
+// أي مسار غير معروف: نعرض واجهة الـSPA للزائر البشري لكن بحالة **404 حقيقية**
+// بدل 200 (soft 404). غوغل كان يفهرس روابط غالطة على أنها صفحات صالحة ويضر
+// بالـSEO. المسارات الصالحة كلها معالجة فوق هذا السطر (/, static, /api/*,
+// /img, /manga/:id, robots, sitemap) — فكل ما يصل هنا هو فعلاً غير موجود.
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {

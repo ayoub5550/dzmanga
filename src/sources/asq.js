@@ -66,9 +66,14 @@ const stripTags = (html = '') => decodeEntities(html.replace(/<[^>]+>/g, ' ')).r
 // للأغلفة الكبيرة في صفحة التفاصيل، والمصغّرة تكفي في الشبكات.
 const fullSize = (url = '') => url.replace(/-\d+x\d+(\.(jpg|jpeg|png|webp))$/i, '$1');
 
+// روابط ووردبريس المحجوزة تظهر أحياناً بين البطاقات (مثل روابط الترقيم
+// /manga/page/2/) فتتسرب كبطاقة مانجا وهمية «page» تعطي 404 عند فتحها.
+const RESERVED_SLUGS = new Set(['page', 'genre', 'tag', 'author', 'artist', 'feed']);
 const slugFromUrl = (url = '') => {
   const m = url.match(/\/manga\/([^/?#]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
+  if (!m) return null;
+  const slug = decodeURIComponent(m[1]);
+  return RESERVED_SLUGS.has(slug.toLowerCase()) ? null : slug;
 };
 
 function proxied(url) {

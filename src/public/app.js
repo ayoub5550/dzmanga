@@ -26,6 +26,7 @@ function icon(name, cls = '') {
 }
 
 const app = document.getElementById('app');
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 const searchForm = document.getElementById('searchForm');
 const searchInput = document.getElementById('searchInput');
 const liveResults = document.getElementById('liveResults');
@@ -169,7 +170,14 @@ function preloadImages(urls) {
 const PLACEHOLDER = 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
 
 function sourceLabel(src) {
-  return src === 'asq' ? 'العاشق' : 'MangaDex';
+  if (src === 'asq') return 'العاشق';
+  if (src === 'tx') return 'Team-X';
+  return 'MangaDex';
+}
+
+// فئة لون الشارة على البطاقة (لكل مصدر لونه)
+function sourceClass(src) {
+  return src === 'asq' ? 'asq' : src === 'tx' ? 'tx' : 'md';
 }
 
 function loadingHtml(text = 'جارِ التحميل…') {
@@ -200,7 +208,7 @@ function cardHtml(m) {
   return `<a class="card" href="#/manga/${encodeURIComponent(m.id)}">
     <div class="card-art">
       <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" referrerpolicy="no-referrer" />
-      <span class="card-src ${m.source === 'asq' ? 'asq' : 'md'}">${sourceLabel(m.source)}</span>
+      <span class="card-src ${sourceClass(m.source)}">${sourceLabel(m.source)}</span>
       <div class="card-chips">${chapterBadge}${ratingBadge}</div>
     </div>
     <div class="title">${escapeHtml(m.title)}</div>
@@ -240,7 +248,7 @@ function liveItemHtml(m) {
   return `<a class="live-item" href="#/manga/${encodeURIComponent(m.id)}">
     <img src="${cover}" loading="lazy" referrerpolicy="no-referrer" />
     <span class="t">${escapeHtml(m.title)}</span>
-    <span class="src ${m.source === 'asq' ? 'asq' : 'md'}">${sourceLabel(m.source)}</span>
+    <span class="src ${sourceClass(m.source)}">${sourceLabel(m.source)}</span>
   </a>`;
 }
 
@@ -273,6 +281,11 @@ document.addEventListener('click', (e) => {
 });
 liveResults.addEventListener('click', () => closeLiveResults());
 window.addEventListener('hashchange', closeLiveResults);
+// قبل أي انتقال: احفظ موضع التمرير في خلاصة التصفّح للعودة إليه لاحقاً
+window.addEventListener('hashchange', () => {}, false);
+document.addEventListener('click', (e) => {
+  if (e.target.closest('a[href^="#/"]')) saveCurrentFeedScroll();
+}, true);
 
 // ---------------------------------------------------------------------------
 // الصفحة الرئيسية
@@ -354,6 +367,15 @@ async function renderHome() {
       label: 'الكل',
     });
     html += '<div class="ad-slot" data-ad="native"></div>';
+    const txData = data.tx || { manhwa: [], manhua: [] };
+    html += sectionHtml('sword', 'مانهوا كورية — Team-X', txData.manhwa, {
+      href: '#/browse/tx/manhwa',
+      label: 'الكل',
+    });
+    html += sectionHtml('portal', 'مانها صينية — Team-X', txData.manhua, {
+      href: '#/browse/tx/manhua',
+      label: 'الكل',
+    });
     for (const g of asqData.genres || []) {
       html += sectionHtml(genreIconName(g.key), g.label, g.items, {
         href: `#/browse/asq/genre-${g.key}`,
@@ -396,8 +418,9 @@ async function renderSearch(q) {
   try {
     const data = await getJson(`/api/search?q=${encodeURIComponent(q)}`);
     const asqRes = data.asq || [];
+    const txRes = data.tx || [];
     const mdRes = data.md || [];
-    if (!asqRes.length && !mdRes.length) {
+    if (!asqRes.length && !txRes.length && !mdRes.length) {
       app.innerHTML = `<h2 class="section">نتائج البحث عن "${escapeHtml(q)}"</h2>
         <div class="empty">لا توجد نتائج بالعربية لهذا البحث.</div>`;
       return;
@@ -406,6 +429,9 @@ async function renderSearch(q) {
     if (asqRes.length)
       html += `<h2 class="section">${icon('book')} مانجا العاشق (${asqRes.length})</h2>
         <div class="grid">${asqRes.map(cardHtml).join('')}</div>`;
+    if (txRes.length)
+      html += `<h2 class="section">${icon('sword')} Team-X (${txRes.length})</h2>
+        <div class="grid">${txRes.map(cardHtml).join('')}</div>`;
     if (mdRes.length)
       html += `<h2 class="section">${icon('grid')} MangaDex (${mdRes.length})</h2>
         <div class="grid">${mdRes.map(cardHtml).join('')}</div>`;
@@ -422,7 +448,8 @@ async function renderSearch(q) {
 // مجلدات. في الحالتين نحتفظ بالفهرس الأصلي (`idx`) لأن القارئ يعتمد عليه في
 // التنقّل بين الفصول.
 function groupChaptersByVolume(chapters, descending) {
-  const withIdx = chapters.map((c, idx) => ({ ...c, idx }));
+  // نحفظ الفهرس الأصلي: إن كان موجوداً مسبقاً (قائمة مُصفّاة) لا نعيد ترقيمه
+  const withIdx = chapters.map((c, idx) => ({ ...c, idx: c.idx ?? idx }));
   const ordered = descending ? [...withIdx].reverse() : withIdx;
   const groups = [];
   let current = null;
@@ -486,7 +513,7 @@ async function renderManga(id) {
         <div class="info">
           <h1>${escapeHtml(manga.title)}</h1>
           <div class="meta">
-            <span class="card-src ${manga.source === 'asq' ? 'asq' : 'md'}" style="position:static">${sourceLabel(manga.source)}</span>
+            <span class="card-src ${sourceClass(manga.source)}" style="position:static">${sourceLabel(manga.source)}</span>
             ${manga.rating ? `<span class="dot-sep">★ ${manga.rating}</span>` : ''}
             ${metaBits.map((b) => `<span class="dot-sep">${escapeHtml(String(b))}</span>`).join('')}
           </div>
@@ -511,14 +538,35 @@ async function renderManga(id) {
         الفصول (${chapters.length})
         <button class="btn more" id="sortToggle" style="margin-inline-start:auto">تنازلي ⇅</button>
       </h2>
+      <div class="ch-tools">
+        <input id="chFilter" class="ch-filter" type="search" inputmode="numeric"
+               placeholder="اذهب إلى رقم فصل…" aria-label="تصفية الفصول برقم" />
+        ${chapters.length > 1 ? `<a class="btn small" href="#/read/${encodeURIComponent(chapters[0].id)}/${encodeURIComponent(manga.id)}/0">الفصل الأول</a>
+        <a class="btn small" href="#/read/${encodeURIComponent(chapters[chapters.length - 1].id)}/${encodeURIComponent(manga.id)}/${chapters.length - 1}">الأخير</a>` : ''}
+      </div>
       <div id="chapterList">${chaptersHtml(chapters, manga.id, descending)}</div>
       <div class="ad-slot" data-ad="banner"></div>
     `;
+    const chFilterEl = document.getElementById('chFilter');
+    const paintChapters = () => {
+      const q = (chFilterEl?.value || '').trim();
+      const indexed = chapters.map((c, i) => ({ ...c, idx: c.idx ?? i }));
+      const list = q
+        ? indexed.filter((c) =>
+            String(c.chapter ?? '').includes(q) || (c.title || '').includes(q)
+          )
+        : indexed;
+      const listEl = document.getElementById('chapterList');
+      listEl.innerHTML = list.length
+        ? chaptersHtml(list, manga.id, descending)
+        : '<div class="empty">لا فصل بهذا الرقم.</div>';
+    };
     document.getElementById('sortToggle')?.addEventListener('click', (e) => {
       descending = !descending;
       e.target.textContent = descending ? 'تنازلي ⇅' : 'تصاعدي ⇅';
-      document.getElementById('chapterList').innerHTML = chaptersHtml(chapters, manga.id, descending);
+      paintChapters();
     });
+    chFilterEl?.addEventListener('input', paintChapters);
     document.getElementById('favBtn')?.addEventListener('click', (e) => {
       const nowFav = toggleFav(manga);
       e.currentTarget.innerHTML = `${icon(nowFav ? 'heartFill' : 'heart')} ${nowFav ? 'في المفضلة' : 'أضف للمفضلة'}`;
@@ -551,7 +599,10 @@ async function renderManga(id) {
 // ---------------------------------------------------------------------------
 // القارئ
 // ---------------------------------------------------------------------------
-async function renderReader(chapterId, mangaId, idx) {
+async function renderReader(chapterId, mangaId, idx, forceVert = false) {
+  // فصول «الشريط الطويل» (ويب تون/مانهوا) لا تصلح للوضع الأفقي؛ forceVert
+  // يتجاوز تفضيل المستخدم لهذا الفصل فقط دون تغيير الإعداد المحفوظ.
+
   setActiveNav(null);
   app.innerHTML = loadingHtml('جارِ تحميل الفصل…');
   try {
@@ -573,6 +624,7 @@ async function renderReader(chapterId, mangaId, idx) {
       window.__mangaCache[mangaId] = manga;
     }
     const { pages, broken } = await getJson(`/api/chapter/${encodeURIComponent(chapterId)}/pages`);
+    const mode = forceVert ? 'vert' : readMode();
     const i = parseInt(idx, 10);
     const current = chapters[i];
     const prev = chapters[i - 1];
@@ -583,15 +635,26 @@ async function renderReader(chapterId, mangaId, idx) {
     app.innerHTML = `
       <div class="reader-head">
         <a class="backlink" href="#/manga/${encodeURIComponent(mangaId)}">&rarr; ${escapeHtml(manga.title || '')}</a>
-        <button class="mode-toggle" id="modeToggle" type="button">${readMode() === 'horiz' ? 'وضع أفقي' : 'وضع رأسي'}</button>
-        <span class="reader-chip">الفصل ${escapeHtml(String(current?.chapter ?? '؟'))} · <span id="pageNow">1</span>/${pages.length}</span>
+        <button class="mode-toggle" id="modeToggle" type="button">${mode === 'horiz' ? 'وضع أفقي' : 'وضع رأسي'}</button>
+        <select class="ch-select" id="chSelect" aria-label="انتقل إلى فصل">
+          ${chapters
+            .map(
+              (c, n) =>
+                `<option value="${n}" ${n === parseInt(idx, 10) ? 'selected' : ''}>الفصل ${escapeHtml(
+                  String(c.chapter ?? n + 1)
+                )}</option>`
+            )
+            .reverse()
+            .join('')}
+        </select>
+        <span class="reader-chip"><span id="pageNow">1</span>/${pages.length}</span>
       </div>
       ${broken || !pages.length
         ? `<div class="empty" style="margin:14px 0">صور هذا الفصل غير متوفرة على المصدر حالياً (رابط معطوب عندهم).${
             next ? ' جرّب الفصل التالي.' : ''
           }</div>`
         : ''}
-      <div class="reader${readMode() === 'horiz' ? ' horiz' : ''}" id="reader">
+      <div class="reader${mode === 'horiz' ? ' horiz' : ''}" id="reader">
         ${pages
           .map(
             (p, n) =>
@@ -633,12 +696,14 @@ async function renderReader(chapterId, mangaId, idx) {
       const ratio = h > 0 ? Math.min(1, window.scrollY / h) : 0;
       bar.style.width = `${ratio * 100}%`;
       // رقم الصفحة الحالية = أول صورة ما زال أسفلها ظاهراً في الشاشة
-      if (readMode() === 'horiz') return; // العدّاد الأفقي له معالج خاص
+      if (mode === 'horiz') return; // العدّاد الأفقي له معالج خاص
       if (counter) {
         const mid = window.scrollY + window.innerHeight * 0.4;
         let n = 1;
         for (let k = 0; k < imgs.length; k++) {
-          if (imgs[k].offsetTop <= mid) n = k + 1; else break;
+          // نتجاهل الصور التي لم تُحمَّل بعد (ارتفاعها 0 يجعل offsetTop مضلِّلاً)
+          if (imgs[k].offsetHeight > 0 && imgs[k].offsetTop <= mid) n = k + 1;
+          else if (imgs[k].offsetHeight > 0) break;
         }
         counter.textContent = String(n);
       }
@@ -656,24 +721,49 @@ async function renderReader(chapterId, mangaId, idx) {
     window.__readerScroll = onScroll;
     window.addEventListener('scroll', onScroll, { passive: true });
     // استئناف الموضع داخل نفس الفصل إن رجع إليه المستخدم
-    const savedY = readMode() === 'horiz' ? 0 : getScroll(chapterId);
+    const savedY = mode === 'horiz' ? 0 : getScroll(chapterId);
     if (savedY > 100) {
       requestAnimationFrame(() => window.scrollTo(0, savedY));
       toast('استأنفنا من حيث توقّفت');
     }
     onScroll();
 
+    // الانتقال المباشر بين الفصول من داخل القارئ (بدل الرجوع لصفحة المانجا)
+    document.getElementById('chSelect')?.addEventListener('change', (e) => {
+      const n = parseInt(e.target.value, 10);
+      const c = chapters[n];
+      if (c) location.hash = `#/read/${encodeURIComponent(c.id)}/${encodeURIComponent(mangaId)}/${n}`;
+    });
+
     // تبديل وضع القراءة (رأسي/أفقي) — يُحفظ ويبقى للفصول القادمة
+    // كشف فصول الشريط الطويل: أول صورة نسبتها طول/عرض > 2 تعني ويب تون —
+    // الوضع الأفقي يصغّرها لشريط غير مقروء، فنفرض الرأسي ونخفي زر التبديل.
     const modeBtn = document.getElementById('modeToggle');
+    const probe = document.querySelector('.reader img');
+    const stripCheck = () => {
+      if (!probe || !probe.naturalWidth) return;
+      if (probe.naturalHeight / probe.naturalWidth > 2) {
+        if (mode === 'horiz') {
+          toast('هذا الفصل بصيغة شريط طويل — تم التحويل للوضع الرأسي');
+          renderReader(chapterId, mangaId, idx, true);
+        } else if (modeBtn) {
+          modeBtn.style.display = 'none';
+        }
+      }
+    };
+    if (probe) {
+      if (probe.complete) stripCheck();
+      else probe.addEventListener('load', stripCheck, { once: true });
+    }
     modeBtn?.addEventListener('click', () => {
-      const nextMode = readMode() === 'horiz' ? 'vert' : 'horiz';
+      const nextMode = mode === 'horiz' ? 'vert' : 'horiz';
       save(STORE.mode, nextMode);
       renderReader(chapterId, mangaId, idx);
       toast(nextMode === 'horiz' ? 'وضع القراءة: أفقي' : 'وضع القراءة: رأسي');
     });
 
     // في الوضع الأفقي التقدّم يُقاس بالتمرير الأفقي داخل الحاوية
-    if (readMode() === 'horiz') {
+    if (mode === 'horiz') {
       if (counter) counter.textContent = '1';
       const rd = document.getElementById('reader');
       rd.addEventListener('scroll', () => {
@@ -708,11 +798,23 @@ async function renderReader(chapterId, mangaId, idx) {
 
     // مناطق نقر على الحواف: يمين = السابق، يسار = التالي (اتجاه عربي)
     const reader = document.getElementById('reader');
+    // وضع القراءة الصافي: نقرة وسط الشاشة تُخفي/تُظهر كل الأزرار والأشرطة
+    const toggleZen = () => {
+      const on = document.body.classList.toggle('zen');
+      if (on && !load('dz_zen_hint_v1', false)) {
+        save('dz_zen_hint_v1', true);
+        toast('وضع القراءة الصافي — اضغط وسط الشاشة لإظهار الأزرار');
+      }
+    };
     reader.addEventListener('click', (e) => {
-      if (readMode() === 'horiz') return; // السحب هو وسيلة التنقّل هناك
       const x = e.clientX / window.innerWidth;
+      if (mode === 'horiz') {
+        if (x >= 0.3 && x <= 0.7) toggleZen(); // الحواف للسحب/التنقّل
+        return;
+      }
       if (x > 0.85 && prev) location.hash = `#/read/${encodeURIComponent(prev.id)}/${encodeURIComponent(mangaId)}/${i - 1}`;
       else if (x < 0.15 && next) location.hash = `#/read/${encodeURIComponent(next.id)}/${encodeURIComponent(mangaId)}/${i + 1}`;
+      else toggleZen();
     });
 
     // اختصارات لوحة المفاتيح (RTL: السهم الأيسر = التالي)
@@ -739,7 +841,7 @@ function renderLibrary() {
     .sort((a, b) => b.at - a.at);
   let html = `<h2 class="section">${icon('heartFill')} المفضلة (${favs.length})</h2>`;
   html += favs.length
-    ? `<div class="grid">${favs.map((f) => cardHtml({ ...f, source: f.id.startsWith('asq:') ? 'asq' : 'md' })).join('')}</div>`
+    ? `<div class="grid">${favs.map((f) => cardHtml({ ...f, source: f.id.startsWith('asq:') ? 'asq' : f.id.startsWith('tx:') ? 'tx' : 'md' })).join('')}</div>`
     : `<div class="empty">لم تُضف أي مانجا للمفضلة بعد — افتح أي مانجا واضغط "أضف للمفضلة".</div>`;
   html += `<h2 class="section">${icon('clock')} سجل القراءة</h2>`;
   html += history.length
@@ -786,99 +888,123 @@ const MD_TABS = [
   { key: 'horror', label: 'رعب', icon: 'ghost' },
 ];
 
-function paginationHtml(page, totalPages) {
-  const nums = [];
-  const add = (n) => nums.push(n);
-  const from = Math.max(1, page - 2);
-  const to = Math.min(totalPages, page + 2);
-  if (from > 1) { add(1); if (from > 2) nums.push('…'); }
-  for (let i = from; i <= to; i++) add(i);
-  if (to < totalPages) { if (to < totalPages - 1) nums.push('…'); add(totalPages); }
+// تبويبات مصدر Team-X — يجب أن تبقى متوافقة مع TYPES/GENRES في src/sources/teamx.js
+const TX_TABS = [
+  { key: 'manhwa', label: 'مانهوا كورية', icon: 'sparkle' },
+  { key: 'manhua', label: 'مانها صينية', icon: 'grid' },
+  { key: 'manga', label: 'مانجا يابانية', icon: 'fire' },
+  { key: 'webtoon', label: 'ويب تون', icon: 'portal' },
+  { key: 'action', label: 'أكشن', icon: 'sword' },
+  { key: 'romance', label: 'رومانسي', icon: 'heart' },
+  { key: 'isekai', label: 'إيسيكاي', icon: 'portal' },
+  { key: 'martial', label: 'فنون قتال', icon: 'sword' },
+  { key: 'fantasy', label: 'فانتازيا', icon: 'wand' },
+  { key: 'drama', label: 'دراما', icon: 'mask' },
+  { key: 'comedy', label: 'كوميدي', icon: 'mask' },
+  { key: 'mystery', label: 'غموض', icon: 'ghost' },
+];
+
+// ---------------------------------------------------------------------------
+// خلاصة التصفّح: تحميل تدريجي (infinite scroll) بدل الترقيم.
+// نضيف البطاقات إلى نفس الشبكة، مع زر "تحميل المزيد" كبديل عند تعطّل المراقب،
+// ونحفظ حالة الخلاصة (HTML + موضع التمرير) للعودة إليها من صفحة المانجا.
+// ---------------------------------------------------------------------------
+function feedShellHtml(note) {
   return `
-    <div class="pagination">
-      <button class="btn page-btn" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>← السابق</button>
-      ${nums
-        .map((n) =>
-          n === '…'
-            ? `<span class="page-ellipsis">…</span>`
-            : `<button class="btn page-btn ${n === page ? 'primary active-page' : ''}" data-page="${n}">${n}</button>`
-        )
-        .join('')}
-      <button class="btn page-btn" data-page="${page + 1}" ${page >= totalPages ? 'disabled' : ''}>التالي →</button>
-    </div>
-  `;
+    ${note ? `<div class="browse-note" id="feedNote">${note}</div>` : '<div class="browse-note" id="feedNote" hidden></div>'}
+    <div class="grid" id="feedGrid"></div>
+    <div id="feedStatus" class="feed-status"></div>
+    <div id="feedSentinel" class="feed-sentinel" aria-hidden="true"></div>`;
 }
 
-// ترقيم بسيط عندما لا يعرف المصدر العدد الكلي للصفحات (حالة 3asq)
-function simplePaginationHtml(page, hasNext) {
-  return `
-    <div class="pagination">
-      <button class="btn page-btn" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>← السابق</button>
-      <span class="page-ellipsis">صفحة ${page}</span>
-      <button class="btn page-btn" data-page="${page + 1}" ${hasNext ? '' : 'disabled'}>التالي →</button>
-    </div>`;
-}
+// fetchPage(page) -> { items, hasNext, note? , retryAfter? }
+function mountFeed(body, key, fetchPage) {
+  body.innerHTML = feedShellHtml('');
+  const grid = body.querySelector('#feedGrid');
+  const status = body.querySelector('#feedStatus');
+  const note = body.querySelector('#feedNote');
+  const sentinel = body.querySelector('#feedSentinel');
+  const state = { page: 0, done: false, busy: false, count: 0 };
+  body.dataset.feedKey = key;
 
-function bindPageButtons(body, handler) {
-  body.querySelectorAll('.page-btn:not([disabled])').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      handler(parseInt(btn.dataset.page, 10));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  });
-}
+  grid.innerHTML = skeletonGrid(18).replace(/^<div class="grid">|<\/div>$/g, '');
 
-async function loadAsqPage(body, { order, genre, page }) {
-  body.innerHTML = skeletonGrid(21);
-  try {
-    const qs = new URLSearchParams({ source: 'asq', page: String(page), order });
-    if (genre) qs.set('genre', genre);
-    const data = await getJson(`/api/browse?${qs}`);
-    body.innerHTML = `
-      <div class="grid">${data.items.map(cardHtml).join('')}</div>
-      ${simplePaginationHtml(data.page, data.hasNext)}
-    `;
-    bindPageButtons(body, (p) => loadAsqPage(body, { order, genre, page: p }));
-  } catch (e) {
-    body.innerHTML = errorHtml('تعذّر التحميل من مانجا العاشق، حاول مجدداً.', () =>
-      loadAsqPage(body, { order, genre, page })
-    );
-  }
-}
-
-async function loadMdAllPage(body, page) {
-  body.innerHTML = skeletonGrid(24);
-  try {
-    const data = await getJson(`/api/browse?source=md&page=${page}`);
-    if (data.indexing) {
-      body.innerHTML = `<div class="loading"><div class="spinner"></div>جارِ فهرسة كتالوج MangaDex العربي الكامل (~700+ مانجا)، ثوانٍ معدودة…</div>`;
-      setTimeout(() => loadMdAllPage(body, page), 3000);
-      return;
+  async function loadNext(manual) {
+    if (state.busy || state.done) return;
+    state.busy = true;
+    status.innerHTML = `<div class="loading"><div class="spinner"></div>جارِ التحميل…</div>`;
+    try {
+      const data = await fetchPage(state.page + 1);
+      if (data.retryAfter) {
+        status.innerHTML = `<div class="loading"><div class="spinner"></div>${escapeHtml(data.message || 'جارِ التحضير…')}</div>`;
+        state.busy = false;
+        setTimeout(() => loadNext(), data.retryAfter);
+        return;
+      }
+      if (state.page === 0) grid.innerHTML = '';
+      state.page += 1;
+      const items = data.items || [];
+      state.count += items.length;
+      grid.insertAdjacentHTML('beforeend', items.map(cardHtml).join(''));
+      if (data.note) { note.innerHTML = data.note; note.hidden = false; }
+      state.done = !data.hasNext || !items.length;
+      status.innerHTML = state.done
+        ? (state.count
+            ? `<div class="feed-end">${state.count === 0 ? '' : `وصلت إلى النهاية · ${state.count} عنواناً`}</div>`
+            : `<div class="empty">لا توجد نتائج بالعربية في هذا القسم حالياً.</div>`)
+        : `<button class="btn more" id="feedMore">تحميل المزيد ↓</button>`;
+      status.querySelector('#feedMore')?.addEventListener('click', () => loadNext(true));
+      saveFeedState(body);
+    } catch (e) {
+      if (state.page === 0) grid.innerHTML = '';
+      status.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => loadNext(true));
+    } finally {
+      state.busy = false;
     }
-    body.innerHTML = `
-      <div class="browse-note">
-        عرض ${data.items.length} من أصل <b>${data.total}</b> مانجا عربية على MangaDex — صفحة ${data.page} من ${data.totalPages}
-      </div>
-      <div class="grid">${data.items.map(cardHtml).join('')}</div>
-      ${paginationHtml(data.page, data.totalPages)}
-    `;
-    bindPageButtons(body, (p) => loadMdAllPage(body, p));
-  } catch (e) {
-    body.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => loadMdAllPage(body, page));
   }
+
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((en) => en.isIntersecting)) loadNext();
+      },
+      { rootMargin: '600px 0px' }
+    );
+    io.observe(sentinel);
+    body.__feedObserver = io;
+  }
+  loadNext();
+}
+
+// حفظ/استرجاع حالة صفحة التصفّح حتى لا يبدأ الزائر من الصفحة الأولى بعد الرجوع
+const FEED_CACHE = new Map();
+function saveFeedState(body) {
+  const key = body?.dataset?.feedKey;
+  if (!key) return;
+  FEED_CACHE.set(key, { html: body.innerHTML, y: window.scrollY });
+  if (FEED_CACHE.size > 8) FEED_CACHE.delete(FEED_CACHE.keys().next().value);
+}
+function saveCurrentFeedScroll() {
+  const body = document.getElementById('browseBody');
+  if (!body?.dataset?.feedKey) return;
+  const prev = FEED_CACHE.get(body.dataset.feedKey);
+  FEED_CACHE.set(body.dataset.feedKey, { html: body.innerHTML, y: window.scrollY });
 }
 
 // route: #/browse/{asq|md}/{latest|popular|genre-KEY|md tab key}
 async function renderBrowse(source = 'asq', view = '') {
   setActiveNav('browse');
-  const isAsq = source !== 'md';
+  const isTx = source === 'tx';
+  const isAsq = !isTx && source !== 'md';
   const asqOrder = view === 'popular' ? 'popular' : 'latest';
   const asqGenre = view.startsWith('genre-') ? view.slice(6) : null;
+  const feedKey = `${source}|${view || 'default'}`;
 
   const sourceTabs = `
     <div class="source-switch">
       <button class="src-tab ${isAsq ? 'active' : ''}" data-src="asq">مانجا العاشق</button>
-      <button class="src-tab ${!isAsq ? 'active' : ''}" data-src="md">MangaDex</button>
+      <button class="src-tab ${isTx ? 'active' : ''}" data-src="tx">مانهوا (Team-X)</button>
+      <button class="src-tab ${!isAsq && !isTx ? 'active' : ''}" data-src="md">MangaDex</button>
     </div>`;
 
   const asqTabs = `
@@ -893,6 +1019,14 @@ async function renderBrowse(source = 'asq', view = '') {
       ).join('')}
     </div>`;
 
+  const txTabs = `
+    <div class="tabs">
+      ${TX_TABS.map(
+        (t) =>
+          `<button class="tab ${(view || 'manhwa') === t.key ? 'active' : ''}" data-view="${t.key}">${icon(t.icon)}${t.label}</button>`
+      ).join('')}
+    </div>`;
+
   const mdTabs = `
     <div class="tabs">
       ${MD_TABS.map(
@@ -901,7 +1035,7 @@ async function renderBrowse(source = 'asq', view = '') {
       ).join('')}
     </div>`;
 
-  app.innerHTML = `${sourceTabs}${isAsq ? asqTabs : mdTabs}<div id="browseBody">${skeletonGrid(18)}</div>`;
+  app.innerHTML = `<div class="browse-bar">${sourceTabs}${isAsq ? asqTabs : isTx ? txTabs : mdTabs}</div><div id="browseBody">${skeletonGrid(18)}</div>`;
 
   app.querySelectorAll('.src-tab').forEach((btn) =>
     btn.addEventListener('click', () => {
@@ -910,31 +1044,77 @@ async function renderBrowse(source = 'asq', view = '') {
   );
   app.querySelectorAll('.tab').forEach((btn) =>
     btn.addEventListener('click', () => {
-      location.hash = `#/browse/${isAsq ? 'asq' : 'md'}/${btn.dataset.view}`;
+      location.hash = `#/browse/${source}/${btn.dataset.view}`;
     })
   );
+  // التصنيف المفتوح يظهر دائماً في شريط التصنيفات (لا يبقى مخفياً خارج الشاشة)
+  const activeTab = app.querySelector('.tab.active');
+  activeTab?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
   const body = document.getElementById('browseBody');
 
+  // استرجاع نفس الخلاصة وموضع التمرير عند الرجوع من صفحة مانجا
+  const cached = FEED_CACHE.get(feedKey);
+  if (cached) {
+    body.innerHTML = cached.html;
+    body.dataset.feedKey = feedKey;
+    const status = body.querySelector('#feedStatus');
+    status?.querySelector('#feedMore')?.addEventListener('click', () => renderBrowseFresh());
+    // الصور تُحمَّل بتأجيل فيتغيّر ارتفاع الصفحة — نُعيد ضبط الموضع عدة مرات
+    if (cached.y > 0) {
+      let tries = 0;
+      const restore = () => {
+        window.scrollTo({ top: cached.y });
+        // نكرر المحاولة حتى يستقر ارتفاع الصفحة (الأغلفة تُحمَّل تدريجياً)
+        if (++tries < 25 && Math.abs(window.scrollY - cached.y) > 4) setTimeout(restore, 100);
+      };
+      requestAnimationFrame(restore);
+    }
+    return;
+  }
+  function renderBrowseFresh() {
+    FEED_CACHE.delete(feedKey);
+    renderBrowse(source, view);
+  }
+
   if (isAsq) {
-    const genreSlug = asqGenre
-      ? { school: 'school-life' }[asqGenre] || asqGenre
-      : null;
-    await loadAsqPage(body, { order: asqOrder, genre: genreSlug, page: 1 });
+    const genreSlug = asqGenre ? { school: 'school-life' }[asqGenre] || asqGenre : null;
+    mountFeed(body, feedKey, async (page) => {
+      const qs = new URLSearchParams({ source: 'asq', page: String(page), order: asqOrder });
+      if (genreSlug) qs.set('genre', genreSlug);
+      const data = await getJson(`/api/browse?${qs}`);
+      return { items: data.items, hasNext: data.hasNext };
+    });
+    return;
+  }
+  if (isTx) {
+    const txView = view || 'manhwa';
+    mountFeed(body, feedKey, async (page) => {
+      const data = await getJson(`/api/browse?source=tx&view=${encodeURIComponent(txView)}&page=${page}`);
+      return { items: data.items, hasNext: data.hasNext };
+    });
     return;
   }
   if (!view || view === 'all') {
-    await loadMdAllPage(body, 1);
+    mountFeed(body, feedKey, async (page) => {
+      const data = await getJson(`/api/browse?source=md&page=${page}`);
+      if (data.indexing)
+        return {
+          retryAfter: 3000,
+          message: 'جارِ فهرسة كتالوج MangaDex العربي الكامل (~700+ مانجا)، ثوانٍ معدودة…',
+        };
+      return {
+        items: data.items,
+        hasNext: data.page < data.totalPages,
+        note: `<b>${data.total}</b> مانجا عربية على MangaDex`,
+      };
+    });
     return;
   }
-  try {
+  mountFeed(body, feedKey, async () => {
     const data = await getJson(`/api/genre/${view}`);
-    body.innerHTML = data.items.length
-      ? `<div class="grid">${data.items.map(cardHtml).join('')}</div>`
-      : `<div class="empty">لا توجد نتائج بالعربية في هذا القسم حالياً.</div>`;
-  } catch (e) {
-    body.innerHTML = errorHtml('تعذّر التحميل، حاول مجدداً.', () => renderBrowse(source, view));
-  }
+    return { items: data.items, hasNext: false };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1037,6 +1217,7 @@ function renderStaticPage(slug) {
 }
 
 function router() {
+  document.body.classList.remove('zen'); // مغادرة وضع القراءة الصافي عند أي تنقّل
   const hash = location.hash.replace(/^#/, '') || '/';
   const parts = hash.split('/').filter(Boolean).map(decodeURIComponent);
   if (parts.length === 0) return renderHome();
@@ -1051,5 +1232,170 @@ function router() {
   return renderHome();
 }
 
+// ارتفاع الهيدر الفعلي → يستخدمه شريط التصفّح اللاصق (sticky) حتى لا يختفي تحته
+(function headerHeightVar() {
+  const set = () => {
+    const h = document.querySelector('header')?.offsetHeight || 56;
+    document.documentElement.style.setProperty('--hh', `${h}px`);
+  };
+  set();
+  window.addEventListener('resize', set);
+  window.addEventListener('load', set);
+})();
+
+// زر العودة إلى الأعلى — يظهر في القوائم الطويلة فقط (وليس داخل القارئ)
+(function backToTop() {
+  const btn = document.createElement('button');
+  btn.id = 'toTop';
+  btn.className = 'to-top';
+  btn.type = 'button';
+  btn.setAttribute('aria-label', 'العودة إلى الأعلى');
+  btn.innerHTML = '↑';
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  document.body.appendChild(btn);
+  const sync = () => {
+    const inReader = !!document.querySelector('.reader');
+    btn.classList.toggle('show', !inReader && window.scrollY > 900);
+  };
+  window.addEventListener('scroll', sync, { passive: true });
+  window.addEventListener('hashchange', () => setTimeout(sync, 60));
+  sync();
+})();
+
+
+/* أغلفة تظهر سوداء عند فشل بروكسي /img (حجب مؤقت من MangaDex مثلاً):
+   نجرّب الرابط المباشر أولاً ثم صورة بديلة بدل مربع أسود. */
+
+
+/* اختصارات لوحة المفاتيح داخل القارئ (لمستخدمي الحاسوب):
+   ← الفصل التالي، → الفصل السابق — نفس اتجاه أزرار الشريط السفلي. */
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input,select,textarea')) return;
+  if (!location.hash.startsWith('#/read/')) return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const bar = document.querySelector('.reader-bar');
+  if (!bar) return;
+  const btns = bar.querySelectorAll('button');
+  const target = e.key === 'ArrowLeft' ? btns[0] : btns[1];
+  if (target && !target.disabled) { e.preventDefault(); target.click(); }
+});
+
+document.addEventListener(
+  'error',
+  (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement)) return;
+    if (img.__coverFallback === 2) return;
+    const src = img.getAttribute('src') || '';
+    if (!img.__coverFallback && src.startsWith('/img?u=')) {
+      img.__coverFallback = 1;
+      img.src = decodeURIComponent(src.slice('/img?u='.length));
+      return;
+    }
+    if (img.closest('.card-art, .live-item, .hero, .cont-card')) {
+      img.__coverFallback = 2;
+      img.src = PLACEHOLDER;
+    }
+  },
+  true
+);
+
 window.addEventListener('hashchange', router);
+window.addEventListener('beforeunload', saveCurrentFeedScroll);
 router();
+
+/* ── أصوات مفاتيح الكيبورد (Web Audio، بدون ملفات) ── */
+(() => {
+  let ctx = null;
+  const SELECTOR = '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a';
+  // تفضيل الصوت (زر 🔊 في الشريط العلوي) — مفعّل افتراضياً
+  const SOUND_KEY = 'dz_sound_v1';
+  const soundOn = () => localStorage.getItem(SOUND_KEY) !== 'off';
+  window.__dzSound = {
+    on: soundOn,
+    toggle() {
+      localStorage.setItem(SOUND_KEY, soundOn() ? 'off' : 'on');
+      return soundOn();
+    },
+  };
+  function ac() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function click(down) {
+    if (!soundOn()) return;
+    const a = ac();
+    if (!a) return;
+    const t = a.currentTime;
+    // نقرة عالية (بلاستيك المفتاح)
+    const len = 0.03;
+    const buf = a.createBuffer(1, Math.ceil(a.sampleRate * len), a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+    const noise = a.createBufferSource();
+    noise.buffer = buf;
+    const bp = a.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = down ? 2400 : 3300;
+    bp.Q.value = 1.6;
+    const g1 = a.createGain();
+    g1.gain.setValueAtTime(down ? 0.22 : 0.12, t);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + len);
+    noise.connect(bp).connect(g1).connect(a.destination);
+    noise.start(t);
+    // «ثوك» منخفض عند الضغط فقط
+    if (down) {
+      const o = a.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(150, t);
+      o.frequency.exponentialRampToValueAtTime(70, t + 0.05);
+      const g2 = a.createGain();
+      g2.gain.setValueAtTime(0.25, t);
+      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      o.connect(g2).connect(a.destination);
+      o.start(t);
+      o.stop(t + 0.07);
+    }
+  }
+  document.addEventListener('pointerdown', (e) => { if (e.target.closest(SELECTOR)) click(true); }, { passive: true, capture: true });
+  document.addEventListener('pointerup', (e) => { if (e.target.closest(SELECTOR)) click(false); }, { passive: true, capture: true });
+})();
+
+/* ارتداد نابضي عند الإفلات: نضيف .key-pop لتشغيل انميشن keyPop/cardPop ثم ننزعه */
+(() => {
+  const POP_SEL =
+    '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a,.card,.live-item,.cont-card';
+  function pop(e) {
+    const el = e.target.closest(POP_SEL);
+    if (!el) return;
+    el.classList.remove('key-pop');
+    void el.offsetWidth; // إعادة تشغيل الانميشن حتى مع النقر السريع المتكرر
+    el.classList.add('key-pop');
+    el.addEventListener('animationend', () => el.classList.remove('key-pop'), { once: true });
+    setTimeout(() => el.classList.remove('key-pop'), 500); // احتياط لو لم يصل animationend
+  }
+  document.addEventListener('pointerup', pop, { passive: true, capture: true });
+  document.addEventListener('pointercancel', pop, { passive: true, capture: true });
+})();
+
+/* زر الصوت في الشريط العلوي: 🔊/🔇 مع حفظ التفضيل */
+(() => {
+  const btn = document.getElementById('soundToggle');
+  if (!btn) return;
+  const paint = (on) => {
+    btn.textContent = on ? '🔊' : '🔇';
+    btn.title = on ? 'كتم أصوات النقر' : 'تشغيل أصوات النقر';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  };
+  paint(window.__dzSound.on());
+  btn.addEventListener('click', () => {
+    const on = window.__dzSound.toggle();
+    paint(on);
+    toast(on ? 'الأصوات مفعّلة 🔊' : 'الأصوات مكتومة 🔇');
+  });
+})();
