@@ -571,6 +571,32 @@
   /* زر كتم/تشغيل أصوات النقر في الشريط العلوي */
   .sound-toggle{padding:8px 10px !important;font-size:16px;line-height:1;min-width:44px}
   @media (max-width:560px){ .sound-toggle{min-width:40px;padding:7px 8px !important} }
+
+  /* ===== SHARE ROW (2026-08-27) ===== */
+  /* صفّ مشاركة تحت الفصول وفي نهاية القارئ. الألوان من متغيرات السمة حتى ما
+     ينكسرش مع أي تغيير سمة قادم — إلا ألوان المنصّات (معروفة عالمياً). */
+  .share-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0;
+    padding:12px;background:var(--card,#e8d29b);border:4px solid var(--line,#4a3617);
+    box-shadow:6px 6px 0 rgba(11,45,77,.35)}
+  .share-lbl{font-weight:900;font-size:14px;color:var(--text,#2b1e0e)}
+  /* الأربعة أزرار لازم تدخل في صف واحد على شاشة 360px، وإلا ينزل "انسخ" لوحده */
+  .share-row .btn.small{padding:8px 11px;font-size:12.5px;color:#fff;border-color:var(--line,#4a3617)}
+  /* !important لأن كتلة القارئ الداكن (body:has(.reader) .btn) تلغي ألوان
+     المنصّات — وألوان واتساب/تلغرام/فيسبوك هي ما يجعل الزر مفهوماً بلمحة. */
+  .share-row .share-wa{background:#25d366!important;color:#08301a!important}
+  .share-row .share-tg{background:#229ed9!important;color:#fff!important}
+  .share-row .share-fb{background:#1877f2!important;color:#fff!important}
+  .share-row .share-copy{background:var(--text,#2b1e0e);color:var(--card,#e8d29b)}
+  body:has(.reader) .share-row{background:#1b1b1b;border-color:#000;color:#eee}
+  body:has(.reader) .share-lbl{color:#eee}
+  body:has(.reader) .share-row .share-copy{background:#e8d29b!important;color:#2b1e0e!important}
+  /* على 360px الأربعة أزرار + كلمة "شارك:" ما يدخلوش في صف واحد (تحققنا بلقطة
+     شاشة حقيقية على 360px) — نخفي الكلمة، الأيقونات مفهومة بألوانها. */
+  @media (max-width:420px){
+    .share-lbl{display:none}
+    .share-row{justify-content:center}
+    .share-row .btn.small{padding:8px 9px;font-size:12px}
+  }
 </style>
 <script src="/ads.js" defer></script>
 <script defer src="https://shown.io/metrics/nW3oN7zB0a" type="text/javascript"></script>

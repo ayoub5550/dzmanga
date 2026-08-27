@@ -133,6 +133,43 @@ function escapeHtml(s) {
   }[c]));
 }
 
+// ---------------------------------------------------------------------------
+// أزرار المشاركة (2026-08-27) — أرخص قناة نمو: القارئ نفسه ينشر الرابط في قروب
+// واتساب/تلغرام. **دائماً** استعمل الرابط الجميل (/manga/.. أو /read/../..) لا
+// رابط الـ#hash: السيرفر يولّد له عنواناً وصورة OG حقيقيين فتطلع المعاينة
+// مليحة، والرابط قابل للفهرسة. wa.me/t.me/sharer لا تحتاج أي SDK ولا تتبّعاً.
+function shareRow(url, text) {
+  const u = encodeURIComponent(url);
+  const t = encodeURIComponent(text);
+  return `
+    <div class="share-row" aria-label="شارك">
+      <span class="share-lbl">شارك:</span>
+      <a class="btn small share-wa" href="https://wa.me/?text=${t}%20${u}" target="_blank" rel="noopener">واتساب</a>
+      <a class="btn small share-tg" href="https://t.me/share/url?url=${u}&text=${t}" target="_blank" rel="noopener">تلغرام</a>
+      <a class="btn small share-fb" href="https://www.facebook.com/sharer/sharer.php?u=${u}" target="_blank" rel="noopener">فيسبوك</a>
+      <button class="btn small share-copy" data-share-url="${escapeHtml(url)}">انسخ الرابط</button>
+    </div>`;
+}
+
+// نسخ الرابط: مفوَّض على مستوى الصفحة حتى يعمل مع أي HTML يُعاد رسمه.
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.share-copy');
+  if (!btn) return;
+  const url = btn.dataset.shareUrl;
+  try {
+    if (navigator.share) return void (await navigator.share({ url }));
+    await navigator.clipboard.writeText(url);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch {}
+    ta.remove();
+  }
+  const old = btn.textContent;
+  btn.textContent = 'نُسخ ✓';
+  setTimeout(() => { btn.textContent = old; }, 1600);
+});
+
 // كاش ذاكرة + إلغاء تكرار الطلبات المتزامنة: الرجوع للخلف أو إعادة فتح صفحة
 // يصبح فورياً بدل انتظار الشبكة من جديد.
 const JSON_CACHE = new Map(); // url -> { t, data }
@@ -545,6 +582,10 @@ async function renderManga(id) {
         <a class="btn small" href="#/read/${encodeURIComponent(chapters[chapters.length - 1].id)}/${encodeURIComponent(manga.id)}/${chapters.length - 1}">الأخير</a>` : ''}
       </div>
       <div id="chapterList">${chaptersHtml(chapters, manga.id, descending)}</div>
+      ${shareRow(
+        `${location.origin}/manga/${encodeURIComponent(manga.id)}`,
+        `مانجا ${manga.title || ''} مترجمة للعربية — اقرأ مجاناً على dzmanga`
+      )}
       <div class="ad-slot" data-ad="banner"></div>
     `;
     const chFilterEl = document.getElementById('chFilter');
@@ -676,6 +717,10 @@ async function renderReader(chapterId, mangaId, idx, forceVert = false) {
         }
         <a class="btn" href="#/manga/${encodeURIComponent(mangaId)}">كل الفصول</a>
       </div>
+      ${shareRow(
+        `${location.origin}/read/${encodeURIComponent(mangaId)}/${encodeURIComponent(current ? current.id : '')}`,
+        `مانجا ${manga.title || ''} الفصل ${current?.chapter ?? ''} مترجم — اقرأ مجاناً على dzmanga`
+      )}
       <div class="reader-progress"><span id="readerBar"></span></div>
       <div class="reader-bar">
         <button class="btn primary" ${next ? '' : 'disabled'} onclick="${goto(next, i + 1)}">التالي &larr;</button>
