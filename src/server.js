@@ -1177,7 +1177,9 @@ let pagesSitemap = { xml: '', t: 0, partial: true };
 async function buildPagesSitemap() {
   const urls = new Map();
   urls.set(`${PUBLIC_ORIGIN}/`, '1.0');
+  urls.set(`${PUBLIC_ORIGIN}/latest`, '0.9');
   urls.set(`${PUBLIC_ORIGIN}/download`, '0.9');
+  for (const g of asq.GENRES) urls.set(`${PUBLIC_ORIGIN}/genre/${g.key}`, '0.8');
   const asqHome = await cachedAsqHome().catch(() => null);
   for (const list of [asqHome?.popular, asqHome?.latest]) {
     for (const m of list || []) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.8');
@@ -1213,8 +1215,32 @@ async function buildChapterIndex() {
   if (chapterIndex.building) return;
   chapterIndex.building = true;
   try {
+    // نوسّع القاعدة (2026-08-27): مانجات الرئيسية + صفحات "الأحدث" من العاشق،
+    // حتى تدخل مئات المانجات لا 33 فقط. طلب واحد لكل صفحة، مرة كل 6 ساعات.
     const pool = await crawlCandidatePool().catch(() => []);
-    const targets = pool.filter((m) => m.id && m.id.startsWith('asq:')).slice(0, 60);
+    const seen = new Set();
+    const targets = [];
+    for (const m of pool) {
+      if (m.id && m.id.startsWith('asq:') && !seen.has(m.id)) {
+        seen.add(m.id);
+        targets.push(m);
+      }
+    }
+    for (let page = 1; page <= 5; page++) {
+      try {
+        const data = await asq.list({ order: 'latest', page });
+        for (const m of data.items || []) {
+          if (m.id && !seen.has(m.id)) {
+            seen.add(m.id);
+            targets.push(m);
+          }
+        }
+        if (!data.hasNext) break;
+      } catch (e) {
+        console.error('chapter index: asq list page', page, 'failed:', e.message);
+        break;
+      }
+    }
     const urls = [];
     for (const m of targets) {
       try {
@@ -1230,7 +1256,7 @@ async function buildChapterIndex() {
     chapterIndex = { urls, builtAt: Date.now(), building: false, known };
     console.log(`chapter index built: ${urls.length} chapter URLs (${fresh.length} new)`);
     // إخطار فوري لمحركات البحث بالفصول الجديدة (Bing/Yandex/Naver عبر IndexNow).
-    if (fresh.length && chapterIndex.builtAt) pingIndexNow(fresh).catch(() => {});
+    if (fresh.length && chapterIndex.builtAt) queueIndexNow(fresh);
   } finally {
     chapterIndex.building = false;
   }
@@ -1285,6 +1311,24 @@ app.get('/sitemap-chapters-:n.xml', (req, res) => {
 // تغيير (تُعتبر إساءة استعمال). هنا نُرسل الجديد فقط، من بناء فهرس الفصول.
 const INDEXNOW_KEY = process.env.INDEXNOW_KEY || '042d2601047241428a8c8adbbb758525';
 const INDEXNOW_MAX_PER_RUN = 2000;
+const INDEXNOW_DRAIN_MS = 20 * 60 * 1000;
+
+// طابور إرسال: أول بناء للفهرس ولّد ~9200 رابطاً جديداً، وإرسال 2000 فقط كان
+// يضيّع الباقي للأبد (لأنهم يصبحون "معروفين"). الطابور يُصرَّف تدريجياً كل 20
+// دقيقة حتى ينفد، فما نتجاوزوش حدود IndexNow ولا نخسر روابط.
+let indexnowQueue = [];
+function queueIndexNow(urls) {
+  const seen = new Set(indexnowQueue);
+  for (const u of urls) if (!seen.has(u)) indexnowQueue.push(u);
+  console.log(`indexnow queue: ${indexnowQueue.length} urls pending`);
+}
+async function drainIndexNow() {
+  if (!indexnowQueue.length) return;
+  const batch = indexnowQueue.slice(0, INDEXNOW_MAX_PER_RUN);
+  const r = await pingIndexNow(batch);
+  if (r && r.status && r.status < 400) indexnowQueue = indexnowQueue.slice(batch.length);
+  console.log(`indexnow queue: ${indexnowQueue.length} urls left`);
+}
 
 async function pingIndexNow(urlList) {
   const urls = [...new Set(urlList)].slice(0, INDEXNOW_MAX_PER_RUN);
@@ -1310,11 +1354,37 @@ async function pingIndexNow(urlList) {
   }
 }
 
+// مربّع البحث داخل نتيجة جوجل (sitelinks searchbox) + روابط صفحات الهبوط.
+const HOME_SEARCH_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'dzmanga',
+  alternateName: 'دي زد مانجا',
+  url: `${PUBLIC_ORIGIN}/`,
+  inLanguage: 'ar',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: { '@type': 'EntryPoint', urlTemplate: `${PUBLIC_ORIGIN}/search?q={search_term_string}` },
+    'query-input': 'required name=search_term_string',
+  },
+};
+
+function landingLinksNav() {
+  const links = [`<a href="/latest">أحدث الفصول المترجمة</a>`, `<a href="/download">تطبيق dzmanga لأندرويد</a>`]
+    .concat(asq.GENRES.map((g) => `<a href="/genre/${g.key}">مانجا ${escHtml(g.label)} مترجمة</a>`))
+    .join('');
+  return `<nav class="crawl-links" aria-label="أقسام الموقع" style="${SR_ONLY_STYLE}">${links}</nav>`;
+}
+
 app.get('/', async (req, res) => {
   let html = INDEX_HTML();
+  html = html.replace(
+    '<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"dzmanga","alternateName":"دي زد مانجا","url":"https://www.dzmanga.dpdns.org/","inLanguage":"ar"}</script>',
+    `<script type="application/ld+json">${JSON.stringify(HOME_SEARCH_LD)}</script>`
+  );
   try {
     const top = await topCrawlItems(90);
-    html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(top, 'روابط سريعة لأشهر المانجا'));
+    html = html.replace('<!--CRAWL_LINKS-->', landingLinksNav() + crawlLinksNav(top, 'روابط سريعة لأشهر المانجا'));
   } catch (e) {
     console.error('homepage crawl links failed:', e.message);
     html = html.replace('<!--CRAWL_LINKS-->', '');
@@ -1391,6 +1461,134 @@ app.get('/manga/:id', async (req, res) => {
     `<script>if(!location.hash)location.hash='#/manga/${encodeURIComponent(id).replace(/'/g, '')}';</script></head>`
   );
   res.set('Cache-Control', 'public, max-age=600').type('html').send(html);
+});
+
+// ---------------------------------------------------------------------------
+// صفحات هبوط للتصنيفات وأحدث الفصول (2026-08-27) — أبواب دخول من البحث.
+// القارئ العربي يبحث كذلك بعبارات عامة: "مانجا أكشن مترجمة"، "مانجا رومانسية"،
+// "أحدث فصول المانجا المترجمة". ما كانتش عندنا أي صفحة تستهدفها (التصفّح كله
+// كان #/browse hash). هذه الصفحات تُقدّم عنواناً ووصفاً عربيين + قائمة روابط
+// حقيقية للأعمال (ItemList) ثم تفتح نفس واجهة التصفّح للزائر.
+// ⚠️ لا تنسخ نصوص العناوين هنا في مكان آخر: صفحة واحدة لكل تصنيف، وcanonical
+// صريح، وإلا صار محتوى مكرّراً يضرب الترتيب.
+function seoHead({ title, desc, url, image, ld, noindex }) {
+  const d = String(desc).slice(0, 300);
+  return `
+<title>${escHtml(title)}</title>
+<meta name="description" content="${escHtml(d)}" />
+<link rel="canonical" href="${escHtml(url)}" />
+${noindex ? '<meta name="robots" content="noindex,follow" />' : ''}
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="dzmanga" />
+<meta property="og:title" content="${escHtml(title)}" />
+<meta property="og:description" content="${escHtml(d)}" />
+<meta property="og:url" content="${escHtml(url)}" />
+<meta property="og:image" content="${escHtml(image || `${PUBLIC_ORIGIN}/og-banner.png`)}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${escHtml(title)}" />
+<meta name="twitter:description" content="${escHtml(d)}" />
+<meta name="twitter:image" content="${escHtml(image || `${PUBLIC_ORIGIN}/og-banner.png`)}" />
+${ld ? `<script type="application/ld+json">${JSON.stringify(ld)}</script>` : ''}`;
+}
+
+function itemListLd(items, name, url) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name,
+    url,
+    inLanguage: 'ar',
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: items.length,
+      itemListElement: items.slice(0, 40).map((m, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: m.title || m.id,
+        url: `${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`,
+      })),
+    },
+  };
+}
+
+app.get('/genre/:key', async (req, res) => {
+  const g = asq.GENRES.find((x) => x.key === req.params.key);
+  if (!g) return res.status(404).type('html').send(INDEX_HTML().replace('<!--CRAWL_LINKS-->', ''));
+  let html = INDEX_HTML();
+  let items = [];
+  try {
+    const data = await asq.list({ genre: g.slug, page: 1 });
+    items = data.items || [];
+  } catch (e) {
+    console.error('genre page failed for', g.key, e.message);
+  }
+  const url = `${PUBLIC_ORIGIN}/genre/${g.key}`;
+  const title = `مانجا ${g.label} مترجمة للعربية — اقرأ مجاناً | dzmanga`;
+  const desc =
+    `أفضل مانجا ${g.label} مترجمة للعربية${items.length ? ` (${items.length} عملاً)` : ''}: ` +
+    `${items.slice(0, 6).map((m) => m.title).filter(Boolean).join('، ')}. قراءة مجانية بدون تسجيل على dzmanga.`;
+  html = html.replace(
+    /<!--SEO:START-->[\s\S]*?<!--SEO:END-->/,
+    `<!--SEO:START-->${seoHead({ title, desc, url, ld: itemListLd(items, title, url) })}\n<!--SEO:END-->`
+  );
+  html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(items, `مانجا ${g.label}`));
+  html = html.replace(
+    '</head>',
+    `<script>if(!location.hash)location.hash='#/browse/asq/genre-${g.key}';</script></head>`
+  );
+  res.set('Cache-Control', 'public, max-age=900').type('html').send(html);
+});
+
+app.get('/latest', async (req, res) => {
+  let html = INDEX_HTML();
+  let items = [];
+  try {
+    const home = await cachedAsqHome();
+    items = (home?.latest || []).slice(0, 40);
+  } catch (e) {
+    console.error('latest page failed:', e.message);
+  }
+  const url = `${PUBLIC_ORIGIN}/latest`;
+  const title = 'أحدث فصول المانجا المترجمة للعربية — تحديث يومي | dzmanga';
+  const desc =
+    `آخر الفصول المترجمة للعربية المضافة اليوم: ${items
+      .slice(0, 6)
+      .map((m) => m.title)
+      .filter(Boolean)
+      .join('، ')}. تابع الجديد مجاناً على dzmanga بدون تسجيل.`;
+  html = html.replace(
+    /<!--SEO:START-->[\s\S]*?<!--SEO:END-->/,
+    `<!--SEO:START-->${seoHead({ title, desc, url, ld: itemListLd(items, title, url) })}\n<!--SEO:END-->`
+  );
+  html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(items, 'أحدث التحديثات'));
+  html = html.replace('</head>', `<script>if(!location.hash)location.hash='#/browse/asq/latest';</script></head>`);
+  res.set('Cache-Control', 'public, max-age=300').type('html').send(html);
+});
+
+// صفحة نتائج البحث: **noindex** (صفحات نتائج البحث الداخلية محتوى رقيق يضرّ
+// بالـSEO لو فُهرست) لكنها موجودة كهدف حقيقي لـSearchAction في JSON-LD، وهي
+// ما يجعل جوجل يعرض مربّع بحث داخل نتيجة الموقع (sitelinks searchbox).
+app.get('/search', (req, res) => {
+  const q = String(req.query.q || '').slice(0, 80);
+  let html = INDEX_HTML();
+  const url = `${PUBLIC_ORIGIN}/search?q=${encodeURIComponent(q)}`;
+  html = html.replace(
+    /<!--SEO:START-->[\s\S]*?<!--SEO:END-->/,
+    `<!--SEO:START-->${seoHead({
+      title: q ? `نتائج البحث عن ${q} | dzmanga` : 'ابحث عن مانجا | dzmanga',
+      desc: 'ابحث في مئات أعمال المانجا المترجمة للعربية على dzmanga.',
+      url,
+      noindex: true,
+    })}\n<!--SEO:END-->`
+  );
+  html = html.replace('<!--CRAWL_LINKS-->', '');
+  if (q) {
+    html = html.replace(
+      '</head>',
+      `<script>if(!location.hash)location.hash='#/search/'+encodeURIComponent(${JSON.stringify(q)});</script></head>`
+    );
+  }
+  res.set('Cache-Control', 'public, max-age=60').type('html').send(html);
 });
 
 // ---------------------------------------------------------------------------
@@ -1511,4 +1709,16 @@ app.listen(PORT, () => {
   // يبدأ بعد دقيقة حتى ما يتزاحمش مع تسخين الرئيسية وبناء الكاتالوج.
   setTimeout(buildChapterIndex, 60 * 1000);
   setInterval(buildChapterIndex, CHAPTER_INDEX_REBUILD_MS);
+  setInterval(() => drainIndexNow().catch(() => {}), INDEXNOW_DRAIN_MS);
+  // صفحات الهبوط الجديدة تُخطر مرة واحدة عند الإقلاع (رخيصة وقليلة).
+  setTimeout(
+    () =>
+      queueIndexNow([
+        `${PUBLIC_ORIGIN}/`,
+        `${PUBLIC_ORIGIN}/latest`,
+        `${PUBLIC_ORIGIN}/download`,
+        ...asq.GENRES.map((g) => `${PUBLIC_ORIGIN}/genre/${g.key}`),
+      ]),
+    30 * 1000
+  );
 });
