@@ -1705,6 +1705,13 @@ app.listen(PORT, () => {
   // periodically rather than per-request.
   buildFullCatalog();
   setInterval(buildFullCatalog, CATALOG_REBUILD_MS);
+  // إعادة محاولة سريعة إذا فشل البناء الأول (MangaDex يرفض أحياناً بعد إعادات
+  // تشغيل متتالية). بدونها يبقى الكاتالوج فارغاً حتى 3 ساعات، وخريطة الموقع
+  // تنزل من ~780 إلى 44 رابطاً طوال هذه المدة — نفس عائلة الباغ الذي أصلحناه
+  // في كاش الـsitemap. الشرط `!items.length` يمنع أي ضرب زائد للمصدر.
+  setInterval(() => {
+    if (!fullCatalog.items.length && !fullCatalog.building) buildFullCatalog();
+  }, 5 * 60 * 1000);
   // فهرس روابط الفصول لخرائط الموقع + إخطار IndexNow بالفصول الجديدة.
   // يبدأ بعد دقيقة حتى ما يتزاحمش مع تسخين الرئيسية وبناء الكاتالوج.
   setTimeout(buildChapterIndex, 60 * 1000);
