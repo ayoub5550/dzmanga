@@ -662,6 +662,10 @@ async function renderReader(chapterId, mangaId, idx, forceVert = false) {
           )
           .join('')}
       </div>
+      <!-- إعلان نهاية الفصل (2026-08-27): بعد آخر صفحة، أي عند نقطة توقّف
+           طبيعية — لا شيء يظهر أثناء القراءة نفسها. أعلى نسبة ظهور (viewability)
+           في الموقع لأن كل قارئ يمرّ من هنا. لحذفه: امسح سطر ad-slot التالي. -->
+      <div class="ad-slot ad-labeled" data-ad="banner"></div>
       <div class="reader-end">
         ${
           next
@@ -946,6 +950,12 @@ function mountFeed(body, key, fetchPage) {
       const items = data.items || [];
       state.count += items.length;
       grid.insertAdjacentHTML('beforeend', items.map(cardHtml).join(''));
+      // إعلان داخل الخلاصة (2026-08-27): مرة واحدة فقط بعد الصفحة الأولى، خارج
+      // شبكة الكروت حتى لا يخرّب التنسيق. أُضيف بعد الكروت لا قبلها: القارئ يرى
+      // محتوى أولاً (أفضل لـCTR وأفضل لتجربة الاستخدام).
+      if (state.page === 1 && !grid.parentElement.querySelector('.ad-slot.feed-ad')) {
+        grid.insertAdjacentHTML('afterend', '<div class="ad-slot ad-labeled feed-ad" data-ad="native"></div>');
+      }
       if (data.note) { note.innerHTML = data.note; note.hidden = false; }
       state.done = !data.hasNext || !items.length;
       status.innerHTML = state.done
