@@ -3,3 +3,7 @@ data/
 *.log
 .DS_Store
 .worktrees/
+dist-app/
+android/android.keystore
+android/app/
+android/build/

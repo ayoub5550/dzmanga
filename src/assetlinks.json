@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "org.dpdns.dzmanga",
+    "sha256_cert_fingerprints": ["1B:C9:53:A5:27:49:7E:22:E9:F5:61:BC:5B:10:4B:D8:66:E1:33:A0:53:D5:9C:96:94:0B:FB:EB:49:97:A4:E2"]
+  }
+}]

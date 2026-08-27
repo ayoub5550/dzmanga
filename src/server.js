@@ -1036,6 +1036,81 @@ async function topCrawlItems(limit) {
   return pool.slice(0, limit);
 }
 
+// ---------------------------------------------------------------------------
+// تطبيق أندرويد (TWA) — أُضيف 2026-08-27
+// التطبيق هو نفس هذا الموقع داخل Trusted Web Activity، فالإعلانات والمحتوى
+// والتحديثات كلها من هنا مباشرة (لا كود واجهة منفصل يُصان).
+//   /.well-known/assetlinks.json → يربط التطبيق بالنطاق. **بدونه** يظهر شريط
+//     عنوان المتصفّح داخل التطبيق. بصمة التوقيع في src/assetlinks.json — لو
+//     تغيّر مفتاح التوقيع (keystore) لازم تُحدَّث هنا وإلا انكسر الربط.
+//   /download            → صفحة التحميل (SEO كامل + JSON-LD).
+//   /download/dzmanga.apk → الملف نفسه من dist-app/ (خارج git: ملف ثنائي).
+// الحجم/التاريخ/البصمة تُقرأ من الملف الحقيقي وقت الطلب — لا أرقام مكتوبة يدوياً
+// تتناقض مع الملف المنشور.
+const APK_PATH = path.join(__dirname, '..', 'dist-app', 'dzmanga.apk');
+const APP_VERSION = process.env.APP_VERSION || '1.0.0';
+const DOWNLOAD_TPL = () => require('fs').readFileSync(path.join(__dirname, 'views', 'download.html'), 'utf8');
+const ASSETLINKS = () => require('fs').readFileSync(path.join(__dirname, 'assetlinks.json'), 'utf8');
+
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  try {
+    res.type('application/json').set('Cache-Control', 'public, max-age=3600').send(ASSETLINKS());
+  } catch (e) {
+    res.status(404).type('text/plain').send('not found');
+  }
+});
+
+function apkInfo() {
+  const st = require('fs').statSync(APK_PATH);
+  return { size: st.size, mb: (st.size / 1048576).toFixed(2), mtime: st.mtime };
+}
+
+const AR_MONTHS = ['جانفي', 'فيفري', 'مارس', 'أفريل', 'ماي', 'جوان', 'جويلية', 'أوت', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const arDate = (d) => `${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+
+app.get('/download', (req, res) => {
+  let info;
+  try {
+    info = apkInfo();
+  } catch (e) {
+    // الملف غير موجود بعد على السيرفر — لا نعرض صفحة بحجم كاذب
+    console.error('apk missing:', e.message);
+    return res.status(503).type('html').send('<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>التطبيق غير متاح حالياً</title><body style="font-family:Tahoma;background:#1386c9;color:#fff;text-align:center;padding:60px"><h1>التطبيق غير متاح مؤقتاً</h1><p>نُعدّ إصداراً جديداً — عُد قريباً. <a style="color:#fff" href="/">تصفّح الموقع</a></p></body></html>');
+  }
+  let fp = '';
+  try {
+    fp = (JSON.parse(ASSETLINKS())[0].target.sha256_cert_fingerprints || [])[0] || '';
+  } catch (e) { /* البصمة تحسين فقط، لا تُسقط الصفحة */ }
+  const html = DOWNLOAD_TPL()
+    .replace(/\{\{VERSION\}\}/g, escHtml(APP_VERSION))
+    .replace(/\{\{SIZE_MB\}\}/g, info.mb)
+    .replace(/\{\{UPDATED_AR\}\}/g, arDate(info.mtime))
+    .replace(/\{\{UPDATED_ISO\}\}/g, info.mtime.toISOString().slice(0, 10))
+    .replace(/\{\{FINGERPRINT\}\}/g, escHtml(fp));
+  res.set('Cache-Control', 'public, max-age=900').type('html').send(html);
+});
+
+// نسخة قديمة من الرابط قد تُشارك بالخطأ — 301 حتى لا تتكرر الصفحة في الفهرس
+app.get(['/download.html', '/app', '/apk'], (req, res) => res.redirect(301, '/download'));
+
+app.get('/download/dzmanga.apk', (req, res) => {
+  let info;
+  try {
+    info = apkInfo();
+  } catch (e) {
+    return res.status(404).type('text/plain').send('apk not found');
+  }
+  console.log(`apk download: ua="${String(req.get('user-agent') || '').slice(0, 120)}"`);
+  res.set({
+    'Content-Type': 'application/vnd.android.package-archive',
+    'Content-Disposition': `attachment; filename="dzmanga-${APP_VERSION}.apk"`,
+    'Content-Length': String(info.size),
+    'Cache-Control': 'public, max-age=3600',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  require('fs').createReadStream(APK_PATH).pipe(res);
+});
+
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /img\n\nSitemap: ${PUBLIC_ORIGIN}/sitemap.xml\n`);
 });
@@ -1046,6 +1121,7 @@ app.get('/sitemap.xml', async (req, res) => {
     if (Date.now() - sitemapCache.t > 60 * 60 * 1000 || !sitemapCache.xml) {
       const urls = new Map();
       urls.set(`${PUBLIC_ORIGIN}/`, '1.0');
+      urls.set(`${PUBLIC_ORIGIN}/download`, '0.9');
       const asqHome = await cachedAsqHome().catch(() => null);
       for (const list of [asqHome?.popular, asqHome?.latest]) {
         for (const m of list || []) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.8');

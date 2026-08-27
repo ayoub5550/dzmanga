@@ -56,6 +56,21 @@
   ::-webkit-scrollbar{height:8px;width:8px}
   ::-webkit-scrollbar-thumb{background:#383230;border-radius:8px}
 
+  /* شريط تطبيق أندرويد (2026-08-27) — يظهر لزوّار أندرويد على الويب فقط،
+     ولا يظهر داخل التطبيق نفسه (referrer=android-app:// أو display-mode:standalone). */
+  .app-bar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid #4a3617;
+    border-top:none;padding:9px 12px;font-size:12.5px;font-weight:600;line-height:1.5}
+  .app-bar[hidden]{display:none}
+  .app-bar img{width:30px;height:30px;flex:0 0 auto;image-rendering:pixelated}
+  .app-bar .ab-t{flex:1;min-width:0}
+  .app-bar .ab-t b{display:block;font-size:13px}
+  .app-bar .ab-t span{color:var(--muted);font-size:11.5px}
+  .app-bar .ab-go{background:var(--accent);color:#f4ffe9;padding:8px 14px;font-size:11px;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;box-shadow:0 3px 0 #1c5c26;white-space:nowrap}
+  .app-bar .ab-go:active{transform:translateY(2px);box-shadow:0 1px 0 #1c5c26}
+  .app-bar .ab-x{background:none;border:none;color:var(--muted);font-size:18px;line-height:1;
+    padding:4px 6px;cursor:pointer;font-family:inherit}
+
   header{position:sticky;top:0;z-index:20;background:rgba(10,15,12,.75);backdrop-filter:blur(10px);
     display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #2a2522;
     max-width:100%}
@@ -573,6 +588,12 @@
   <a href="#/browse" class="btn browse-link" style="white-space:nowrap">تصفّح الكل</a>
   <button id="soundToggle" class="btn sound-toggle" type="button" aria-label="أصوات النقر">🔊</button>
 </header>
+<div class="app-bar" id="appBar" hidden>
+  <img src="/icon-192.png" width="30" height="30" alt="" />
+  <a class="ab-t" href="/download"><b>تطبيق dzmanga لأندرويد</b><span>خفيف، شاشة كاملة، بدون إعلانات منبثقة</span></a>
+  <a class="ab-go" href="/download">تحميل</a>
+  <button class="ab-x" id="appBarX" type="button" aria-label="إخفاء">×</button>
+</div>
 <main id="app"></main>
 <footer class="site-footer">
   <div class="sf-inner">
@@ -582,6 +603,7 @@
       <a href="#/page/terms">شروط الاستخدام</a>
       <a href="#/page/dmca">إخلاء المسؤولية / DMCA</a>
       <a href="#/page/contact">اتصل بنا</a>
+      <a href="/download">تطبيق أندرويد</a>
     </nav>
     <!--CRAWL_LINKS-->
     <div class="sf-copy">© <span id="sfYear"></span> DZMANGA — جميع الحقوق في الأعمال المعروضة محفوظة لأصحابها.</div>
@@ -601,6 +623,22 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.getElementById('searchInput').focus();
   });
+</script>
+<script>
+  // شريط التطبيق: أندرويد + متصفّح ويب فقط، ويُخفى نهائياً بعد الإغلاق.
+  (function () {
+    var bar = document.getElementById('appBar');
+    if (!bar) return;
+    var inApp = (document.referrer || '').indexOf('android-app://') === 0 ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    var isAndroid = /Android/i.test(navigator.userAgent);
+    if (!isAndroid || inApp || localStorage.getItem('dz_appbar') === 'off') return;
+    bar.hidden = false;
+    document.getElementById('appBarX').addEventListener('click', function () {
+      bar.hidden = true;
+      try { localStorage.setItem('dz_appbar', 'off'); } catch (e) {}
+    });
+  })();
 </script>
 <script src="/app.js"></script>
 <script>

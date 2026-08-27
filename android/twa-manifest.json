@@ -1,0 +1,43 @@
+{
+  "packageId": "org.dpdns.dzmanga",
+  "host": "www.dzmanga.dpdns.org",
+  "name": "dzmanga — قارئ مانجا عربي",
+  "launcherName": "dzmanga",
+  "display": "standalone",
+  "themeColor": "#1386C9",
+  "themeColorDark": "#0F6EA6",
+  "navigationColor": "#0F6EA6",
+  "navigationColorDark": "#0F6EA6",
+  "navigationDividerColor": "#0F6EA6",
+  "navigationDividerColorDark": "#0F6EA6",
+  "backgroundColor": "#1386C9",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://www.dzmanga.dpdns.org/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "dzmanga"
+  },
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://www.dzmanga.dpdns.org/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "minSdkVersion": 23,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [
+    "dzmanga.dpdns.org"
+  ],
+  "retainedBundles": [],
+  "displayOverride": []
+}
