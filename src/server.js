@@ -750,54 +750,63 @@ app.get('/api/manga/:id', async (req, res) => {
   }
 });
 
+// قائمة الفصول — استُخرجت من مسار /api/manga/:id/chapters (2026-08-27) لأن
+// صفحات الفصول الجديدة القابلة للفهرسة (/read/...) تحتاج نفس القائمة على
+// السيرفر. لا تُكرّر منطق الجلب في مكان ثالث: استعمل loadChapters().
+async function loadChapters(id) {
+  if (id.startsWith('tx:')) return await tx.chapters(id.slice(3));
+  if (id.startsWith('asq:')) return await asq.chapters(id.slice(4));
+  if (!UUID_RE.test(id)) {
+    const err = new Error('manga not found');
+    err.status = 404;
+    throw err;
+  }
+  let offset = 0;
+  let all = [];
+  for (let i = 0; i < 15; i++) {
+    const url = `${MD_BASE}/manga/${id}/feed?translatedLanguage[]=${LANG}&order[chapter]=asc&limit=500&offset=${offset}&includes[]=scanlation_group&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
+    const data = await cachedFetchJson(url);
+    all = all.concat(data.data);
+    offset += 500;
+    if (offset >= data.total || data.data.length === 0) break;
+  }
+  // Grouped by volume (like MangaDex's own chapter table) so long-running
+  // series don't dump hundreds of flat rows on the reader.
+  return all
+    .filter((c) => c.attributes.pages > 0) // drop external-only/licensed chapters we can't render
+    .map((c) => {
+      const group = (c.relationships || []).find((r) => r.type === 'scanlation_group');
+      return {
+        id: c.id,
+        chapter: c.attributes.chapter,
+        title: c.attributes.title,
+        pages: c.attributes.pages,
+        publishAt: c.attributes.publishAt,
+        volume: c.attributes.volume,
+        group: group?.attributes?.name || null,
+      };
+    });
+}
+
+// نسخة مُكاشة (10 دقائق) لاستعمال طبقة الـSEO فقط — صفحات /read و/manga
+// وبناء الـsitemap تُطلب كثيراً من الزواحف، وما نبغيش كل طلب يضرب المصدر.
+const chaptersCache = new Map(); // id -> { t, chapters }
+const CHAPTERS_TTL_MS = 10 * 60 * 1000;
+async function cachedChapters(id) {
+  const hit = chaptersCache.get(id);
+  if (hit && Date.now() - hit.t < CHAPTERS_TTL_MS) return hit.chapters;
+  const chapters = await loadChapters(id);
+  chaptersCache.set(id, { t: Date.now(), chapters });
+  if (chaptersCache.size > 400) chaptersCache.delete(chaptersCache.keys().next().value);
+  return chapters;
+}
+
 app.get('/api/manga/:id/chapters', async (req, res) => {
-  if (req.params.id.startsWith('tx:')) {
-    try {
-      return res.json({ chapters: await tx.chapters(req.params.id.slice(3)) });
-    } catch (e) {
-      console.error('teamx chapters failed:', e.message);
-      return res.status(502).json({ error: 'failed to load chapters' });
-    }
-  }
-  if (req.params.id.startsWith('asq:')) {
-    try {
-      const chapters = await asq.chapters(req.params.id.slice(4));
-      return res.json({ chapters });
-    } catch (e) {
-      console.error(e);
-      return res.status(502).json({ error: 'failed to load chapters' });
-    }
-  }
-  if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'manga not found' });
   try {
-    let offset = 0;
-    let all = [];
-    for (let i = 0; i < 15; i++) {
-      const url = `${MD_BASE}/manga/${req.params.id}/feed?translatedLanguage[]=${LANG}&order[chapter]=asc&limit=500&offset=${offset}&includes[]=scanlation_group&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
-      const data = await cachedFetchJson(url);
-      all = all.concat(data.data);
-      offset += 500;
-      if (offset >= data.total || data.data.length === 0) break;
-    }
-    // Grouped by volume (like MangaDex's own chapter table) so long-running
-    // series don't dump hundreds of flat rows on the reader.
-    const chapters = all
-      .filter((c) => c.attributes.pages > 0) // drop external-only/licensed chapters we can't render
-      .map((c) => {
-        const group = (c.relationships || []).find((r) => r.type === 'scanlation_group');
-        return {
-          id: c.id,
-          chapter: c.attributes.chapter,
-          title: c.attributes.title,
-          pages: c.attributes.pages,
-          publishAt: c.attributes.publishAt,
-          volume: c.attributes.volume,
-          group: group?.attributes?.name || null,
-        };
-      });
-    res.json({ chapters });
+    res.json({ chapters: await loadChapters(req.params.id) });
   } catch (e) {
-    console.error(e);
+    if (e.status === 404) return res.status(404).json({ error: 'manga not found' });
+    console.error('chapters failed:', e.message);
     res.status(502).json({ error: 'failed to load chapters' });
   }
 });
@@ -1000,6 +1009,26 @@ function crawlLinksNav(items, label) {
   return `<nav class="crawl-links" aria-label="${escHtml(label)}" style="${SR_ONLY_STYLE}">${links}</nav>`;
 }
 
+// روابط زحف لصفحات الفصول (2026-08-27). صفحة المانجا كانت تعرض الفصول عبر JS
+// فقط (#/read/..)، فجوجل ما كانش يوصل لأي فصل. هنا نحقن روابط <a> حقيقية إلى
+// المسار القابل للفهرسة /read/<manga>/<chapter> (نفس ما يفتحه الزائر بالضغط).
+const CHAPTER_CRAWL_LIMIT = 400;
+
+function chapterCrawlNav(mangaId, chapters, mangaTitle) {
+  if (!chapters || !chapters.length) return '';
+  const links = chapters
+    .slice(-CHAPTER_CRAWL_LIMIT)
+    .filter((c) => c && c.id)
+    .map(
+      (c) =>
+        `<a href="/read/${encodeURIComponent(mangaId)}/${encodeURIComponent(c.id)}">${escHtml(
+          `${mangaTitle || ''} الفصل ${c.chapter ?? ''}`.trim()
+        )}</a>`
+    )
+    .join('');
+  return `<nav class="crawl-links" aria-label="كل الفصول" style="${SR_ONLY_STYLE}">${links}</nav>`;
+}
+
 function shufflePick(arr, n) {
   const copy = arr.slice();
   for (let i = copy.length - 1; i > 0; i--) {
@@ -1112,35 +1141,174 @@ app.get('/download/dzmanga.apk', (req, res) => {
 });
 
 app.get('/robots.txt', (req, res) => {
-  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /img\n\nSitemap: ${PUBLIC_ORIGIN}/sitemap.xml\n`);
+  // /img مسموح لزواحف الصور فقط (2026-08-27): أغلفة المانجا مصدر زوّار حقيقي من
+  // بحث صور جوجل، وكانت محجوبة كلياً. باقي الزواحف تبقى ممنوعة من /img حتى ما
+  // تستهلكش CPU الـresize في زحف بلا فائدة. /api/ ممنوع للجميع (JSON، لا قيمة SEO).
+  res
+    .type('text/plain')
+    .set('Cache-Control', 'public, max-age=3600')
+    .send(
+      `User-agent: Googlebot-Image\nAllow: /img\nAllow: /\nDisallow: /api/\n\n` +
+        `User-agent: Bingbot\nAllow: /img\nAllow: /\nDisallow: /api/\n\n` +
+        `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /img\n\n` +
+        `Sitemap: ${PUBLIC_ORIGIN}/sitemap.xml\n`
+    );
 });
 
-let sitemapCache = { xml: '', t: 0 };
+// ---------------------------------------------------------------------------
+// خرائط الموقع (أُعيدت هندستها 2026-08-27)
+//   /sitemap.xml            → **فهرس** خرائط (sitemap index)
+//   /sitemap-pages.xml      → الرئيسية + /download + كل صفحات /manga/:id
+//   /sitemap-chapters-N.xml → صفحات الفصول /read/... (آلاف الروابط)
+// لماذا: القارئ كان hash-only (#/read/..) فكانت **كل** صفحات الفصول مخفية عن
+// جوجل، وهي المحتوى الذي يجلب الزوّار فعلاً ("مانجا X الفصل Y مترجم").
+//
+// ⚠️ خطأ قديم لا تُعِده: الخريطة كانت تُكاش ساعة كاملة **حتى لو** بُنيت في أول
+// دقيقة بعد إعادة التشغيل وقت ما يكون fullCatalog فارغاً — فتُقدَّم خريطة فيها
+// 35 رابطاً فقط بدل ~770 لمدة ساعة (وجوجل يسحبها فعلاً في هذه النافذة).
+// الحل: ما نكاشيش النتيجة الناقصة إلا دقيقة واحدة.
+const SITEMAP_TTL_MS = 60 * 60 * 1000;
+const SITEMAP_PARTIAL_TTL_MS = 60 * 1000;
+const CHAPTERS_PER_SITEMAP = 5000;
+const SITEMAP_HEAD = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+
+let pagesSitemap = { xml: '', t: 0, partial: true };
+
+async function buildPagesSitemap() {
+  const urls = new Map();
+  urls.set(`${PUBLIC_ORIGIN}/`, '1.0');
+  urls.set(`${PUBLIC_ORIGIN}/download`, '0.9');
+  const asqHome = await cachedAsqHome().catch(() => null);
+  for (const list of [asqHome?.popular, asqHome?.latest]) {
+    for (const m of list || []) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.8');
+  }
+  for (const m of fullCatalog.items) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.6');
+  const body = [...urls.entries()]
+    .map(([loc, pr]) => `<url><loc>${escXml(loc)}</loc><priority>${pr}</priority></url>`)
+    .join('\n');
+  pagesSitemap = {
+    xml: `${SITEMAP_HEAD}\n${body}\n</urlset>`,
+    t: Date.now(),
+    partial: !fullCatalog.items.length,
+  };
+  return pagesSitemap;
+}
+
+async function cachedPagesSitemap() {
+  const ttl = pagesSitemap.partial ? SITEMAP_PARTIAL_TTL_MS : SITEMAP_TTL_MS;
+  if (!pagesSitemap.xml || Date.now() - pagesSitemap.t > ttl) await buildPagesSitemap();
+  return pagesSitemap.xml;
+}
+
+// فهرس الفصول: يُبنى في الخلفية (كل 6 ساعات) من مانجات 3asq في الرئيسية.
+// طلب واحد لكل مانجا، فما يثقّلش المصدر، والنتيجة تُقدّم جاهزة للزواحف.
+const CHAPTER_INDEX_REBUILD_MS = 6 * 60 * 60 * 1000;
+let chapterIndex = { urls: [], builtAt: 0, building: false, known: new Set() };
+
+function readUrl(mangaId, chapterId) {
+  return `${PUBLIC_ORIGIN}/read/${encodeURIComponent(mangaId)}/${encodeURIComponent(chapterId)}`;
+}
+
+async function buildChapterIndex() {
+  if (chapterIndex.building) return;
+  chapterIndex.building = true;
+  try {
+    const pool = await crawlCandidatePool().catch(() => []);
+    const targets = pool.filter((m) => m.id && m.id.startsWith('asq:')).slice(0, 60);
+    const urls = [];
+    for (const m of targets) {
+      try {
+        const chapters = await cachedChapters(m.id);
+        for (const ch of chapters) if (ch && ch.id) urls.push(readUrl(m.id, ch.id));
+      } catch (e) {
+        console.error('chapter index: skipped', m.id, e.message);
+      }
+    }
+    if (!urls.length) return;
+    const fresh = urls.filter((u) => !chapterIndex.known.has(u));
+    const known = new Set(urls);
+    chapterIndex = { urls, builtAt: Date.now(), building: false, known };
+    console.log(`chapter index built: ${urls.length} chapter URLs (${fresh.length} new)`);
+    // إخطار فوري لمحركات البحث بالفصول الجديدة (Bing/Yandex/Naver عبر IndexNow).
+    if (fresh.length && chapterIndex.builtAt) pingIndexNow(fresh).catch(() => {});
+  } finally {
+    chapterIndex.building = false;
+  }
+}
+
+function chapterSitemapCount() {
+  return Math.max(1, Math.ceil(chapterIndex.urls.length / CHAPTERS_PER_SITEMAP));
+}
+
 app.get('/sitemap.xml', async (req, res) => {
   try {
-    if (Date.now() - sitemapCache.t > 60 * 60 * 1000 || !sitemapCache.xml) {
-      const urls = new Map();
-      urls.set(`${PUBLIC_ORIGIN}/`, '1.0');
-      urls.set(`${PUBLIC_ORIGIN}/download`, '0.9');
-      const asqHome = await cachedAsqHome().catch(() => null);
-      for (const list of [asqHome?.popular, asqHome?.latest]) {
-        for (const m of list || []) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.8');
-      }
-      for (const m of fullCatalog.items) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.6');
-      const body = [...urls.entries()]
-        .map(([loc, pr]) => `<url><loc>${escXml(loc)}</loc><priority>${pr}</priority></url>`)
-        .join('\n');
-      sitemapCache = {
-        xml: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>`,
-        t: Date.now(),
-      };
+    await cachedPagesSitemap();
+    const maps = [`${PUBLIC_ORIGIN}/sitemap-pages.xml`];
+    if (chapterIndex.urls.length) {
+      for (let i = 1; i <= chapterSitemapCount(); i++) maps.push(`${PUBLIC_ORIGIN}/sitemap-chapters-${i}.xml`);
     }
-    res.type('application/xml').send(sitemapCache.xml);
+    const lastmod = new Date().toISOString().slice(0, 10);
+    const body = maps.map((loc) => `<sitemap><loc>${escXml(loc)}</loc><lastmod>${lastmod}</lastmod></sitemap>`).join('\n');
+    res
+      .type('application/xml')
+      .send(`<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</sitemapindex>`);
   } catch (e) {
-    console.error('sitemap failed:', e.message);
+    console.error('sitemap index failed:', e.message);
     res.status(500).type('text/plain').send('sitemap unavailable');
   }
 });
+
+app.get('/sitemap-pages.xml', async (req, res) => {
+  try {
+    res.type('application/xml').send(await cachedPagesSitemap());
+  } catch (e) {
+    console.error('sitemap pages failed:', e.message);
+    res.status(500).type('text/plain').send('sitemap unavailable');
+  }
+});
+
+app.get('/sitemap-chapters-:n.xml', (req, res) => {
+  const n = Number(req.params.n);
+  if (!Number.isInteger(n) || n < 1 || n > chapterSitemapCount() || !chapterIndex.urls.length) {
+    return res.status(404).type('text/plain').send('not found');
+  }
+  const slice = chapterIndex.urls.slice((n - 1) * CHAPTERS_PER_SITEMAP, n * CHAPTERS_PER_SITEMAP);
+  const body = slice.map((loc) => `<url><loc>${escXml(loc)}</loc><priority>0.7</priority></url>`).join('\n');
+  res.type('application/xml').send(`${SITEMAP_HEAD}\n${body}\n</urlset>`);
+});
+
+// ---------------------------------------------------------------------------
+// IndexNow (Bing / Yandex / Naver / Seznam) — فهرسة فورية بلا حساب ولا API key
+// خارجي: الإثبات هو ملف المفتاح في src/public/<key>.txt (موجود منذ 2026-08-21).
+// جوجل لا يدعم IndexNow — عنده Search Console + الـsitemap أعلاه.
+// ⚠️ لا تُرسل أكثر من 10 آلاف رابط في الطلب، ولا تُرسل نفس الرابط مراراً بلا
+// تغيير (تُعتبر إساءة استعمال). هنا نُرسل الجديد فقط، من بناء فهرس الفصول.
+const INDEXNOW_KEY = process.env.INDEXNOW_KEY || '042d2601047241428a8c8adbbb758525';
+const INDEXNOW_MAX_PER_RUN = 2000;
+
+async function pingIndexNow(urlList) {
+  const urls = [...new Set(urlList)].slice(0, INDEXNOW_MAX_PER_RUN);
+  if (!urls.length) return { skipped: true };
+  const host = new URL(PUBLIC_ORIGIN).host;
+  const payload = JSON.stringify({
+    host,
+    key: INDEXNOW_KEY,
+    keyLocation: `${PUBLIC_ORIGIN}/${INDEXNOW_KEY}.txt`,
+    urlList: urls,
+  });
+  try {
+    const r = await fetch('https://api.indexnow.org/indexnow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: payload,
+    });
+    console.log(`indexnow: sent ${urls.length} urls → ${r.status}`);
+    return { status: r.status, count: urls.length };
+  } catch (e) {
+    console.error('indexnow failed:', e.message);
+    return { error: e.message };
+  }
+}
 
 app.get('/', async (req, res) => {
   let html = INDEX_HTML();
@@ -1172,6 +1340,7 @@ app.get('/manga/:id', async (req, res) => {
   const id = req.params.id;
   let html = INDEX_HTML();
   let related = [];
+  let chapterNav = '';
   try {
     const m = await loadMangaDetail(id);
     const title = `${m.title} — اقرأ بالعربية مجاناً | dzmanga`;
@@ -1206,6 +1375,7 @@ app.get('/manga/:id', async (req, res) => {
     html = html.replace(/<!--SEO:START-->[\s\S]*?<!--SEO:END-->/, `<!--SEO:START-->${head}\n<!--SEO:END-->`);
     const pool = await crawlCandidatePool();
     related = shufflePick(pool.filter((x) => x.id !== id), 5);
+    chapterNav = chapterCrawlNav(id, await cachedChapters(id).catch(() => []), m.title);
   } catch (e) {
     // معرّف فاسد فعلياً (null/undefined/فارغ) — رابط تالف، ليس عملاً حقيقياً
     // اختفى مؤقتاً. نرجّع 404 حقيقي بدل 200 حتى ما يفهرسه جوجل كصفحة صالحة.
@@ -1214,12 +1384,102 @@ app.get('/manga/:id', async (req, res) => {
     }
     console.error('seo page failed for', id, e.message); // fall through: serve default head
   }
-  html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(related, 'أعمال مشابهة'));
+  html = html.replace('<!--CRAWL_LINKS-->', chapterNav + crawlLinksNav(related, 'أعمال مشابهة'));
   // open the right SPA view for human visitors (bots just read the meta)
   html = html.replace(
     '</head>',
     `<script>if(!location.hash)location.hash='#/manga/${encodeURIComponent(id).replace(/'/g, '')}';</script></head>`
   );
+  res.set('Cache-Control', 'public, max-age=600').type('html').send(html);
+});
+
+// ---------------------------------------------------------------------------
+// صفحة الفصل القابلة للفهرسة (2026-08-27) — أهم إضافة SEO في المشروع.
+//   /read/<mangaId>/<chapterId>
+// القارئ نفسه يبقى hash-routed (#/read/<chapterId>/<mangaId>/<idx>) كما هو —
+// هذا المسار يقدّم **نفس** المحتوى مع عنوان ووصف عربيين حقيقيين للفصل، ثم
+// يفتح القارئ للزائر البشري. بحث القرّاء العرب هو "مانجا X الفصل Y مترجم"،
+// وبدون هذه الصفحات كان الموقع غائباً كلياً عن هذا البحث.
+// ⚠️ لا تحوّل القارئ نفسه إلى SSR كامل: صور الفصل تُحمَّل عبر /img والقارئ
+// يعتمد على JS؛ الهدف هنا الميتا + روابط الزحف، لا إعادة كتابة القارئ.
+app.get('/read/:mangaId/:chapterId', async (req, res) => {
+  const { mangaId, chapterId } = req.params;
+  let html = INDEX_HTML();
+  let idx = 0;
+  let nav = '';
+  try {
+    const [m, chapters] = await Promise.all([loadMangaDetail(mangaId), cachedChapters(mangaId)]);
+    idx = chapters.findIndex((c) => c.id === chapterId);
+    if (idx < 0) {
+      // فصل غير موجود في هذه المانجا → 404 حقيقي، لا صفحة فارغة بحالة 200
+      return res.status(404).type('html').send(INDEX_HTML().replace('<!--CRAWL_LINKS-->', ''));
+    }
+    const ch = chapters[idx];
+    const num = ch.chapter ?? String(idx + 1);
+    const title = `مانجا ${m.title} الفصل ${num} مترجم | dzmanga`;
+    const desc =
+      `اقرأ الفصل ${num} من مانجا ${m.title} مترجماً للعربية مجاناً وبجودة عالية على dzmanga` +
+      `${ch.title ? ` — ${ch.title}` : ''}. قارئ سريع بدون تسجيل، ويعمل على الجوال.`;
+    const pageUrl = readUrl(mangaId, chapterId);
+    const mangaUrl = `${PUBLIC_ORIGIN}/manga/${encodeURIComponent(mangaId)}`;
+    const img = m.cover ? (m.cover.startsWith('http') ? m.cover : PUBLIC_ORIGIN + m.cover) : `${PUBLIC_ORIGIN}/icon-512.png`;
+    const ld = [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'ComicIssue',
+        name: `${m.title} — الفصل ${num}`,
+        issueNumber: String(num),
+        url: pageUrl,
+        image: img,
+        inLanguage: 'ar',
+        ...(ch.publishAt ? { datePublished: ch.publishAt } : {}),
+        isPartOf: { '@type': 'ComicSeries', name: m.title, url: mangaUrl },
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'dzmanga', item: `${PUBLIC_ORIGIN}/` },
+          { '@type': 'ListItem', position: 2, name: m.title, item: mangaUrl },
+          { '@type': 'ListItem', position: 3, name: `الفصل ${num}`, item: pageUrl },
+        ],
+      },
+    ];
+    const prev = chapters[idx - 1];
+    const next = chapters[idx + 1];
+    const head = `
+<title>${escHtml(title)}</title>
+<meta name="description" content="${escHtml(desc.slice(0, 300))}" />
+<link rel="canonical" href="${escHtml(pageUrl)}" />
+${prev ? `<link rel="prev" href="${escHtml(readUrl(mangaId, prev.id))}" />` : ''}
+${next ? `<link rel="next" href="${escHtml(readUrl(mangaId, next.id))}" />` : ''}
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="dzmanga" />
+<meta property="og:title" content="${escHtml(title)}" />
+<meta property="og:description" content="${escHtml(desc.slice(0, 300))}" />
+<meta property="og:url" content="${escHtml(pageUrl)}" />
+<meta property="og:image" content="${escHtml(img)}" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="${escHtml(title)}" />
+<meta name="twitter:description" content="${escHtml(desc.slice(0, 300))}" />
+<meta name="twitter:image" content="${escHtml(img)}" />
+<script type="application/ld+json">${JSON.stringify(ld)}</script>`;
+    html = html.replace(/<!--SEO:START-->[\s\S]*?<!--SEO:END-->/, `<!--SEO:START-->${head}\n<!--SEO:END-->`);
+    const navLinks = [
+      `<a href="${escHtml(mangaUrl)}">${escHtml(`كل فصول ${m.title}`)}</a>`,
+      prev ? `<a href="${escHtml(readUrl(mangaId, prev.id))}">${escHtml(`الفصل ${prev.chapter ?? ''}`)}</a>` : '',
+      next ? `<a href="${escHtml(readUrl(mangaId, next.id))}">${escHtml(`الفصل ${next.chapter ?? ''}`)}</a>` : '',
+    ].join('');
+    nav = `<nav class="crawl-links" aria-label="تنقّل الفصول" style="${SR_ONLY_STYLE}">${navLinks}</nav>`;
+  } catch (e) {
+    if (e.status === 404) {
+      return res.status(404).type('html').send(INDEX_HTML().replace('<!--CRAWL_LINKS-->', ''));
+    }
+    console.error('chapter seo page failed for', mangaId, chapterId, e.message);
+  }
+  html = html.replace('<!--CRAWL_LINKS-->', nav);
+  const hash = `#/read/${encodeURIComponent(chapterId)}/${encodeURIComponent(mangaId)}/${idx}`.replace(/'/g, '');
+  html = html.replace('</head>', `<script>if(!location.hash)location.hash='${hash}';</script></head>`);
   res.set('Cache-Control', 'public, max-age=600').type('html').send(html);
 });
 
@@ -1247,4 +1507,8 @@ app.listen(PORT, () => {
   // periodically rather than per-request.
   buildFullCatalog();
   setInterval(buildFullCatalog, CATALOG_REBUILD_MS);
+  // فهرس روابط الفصول لخرائط الموقع + إخطار IndexNow بالفصول الجديدة.
+  // يبدأ بعد دقيقة حتى ما يتزاحمش مع تسخين الرئيسية وبناء الكاتالوج.
+  setTimeout(buildChapterIndex, 60 * 1000);
+  setInterval(buildChapterIndex, CHAPTER_INDEX_REBUILD_MS);
 });
