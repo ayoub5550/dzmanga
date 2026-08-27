@@ -138,3 +138,31 @@ PORT=3090 node src/server.js
   إعادة رسم للـSPA في أول `.ad-slot`). الأماكن: الرئيسية بعد قسم "الأكثر
   شعبية" + صفحة المانجا تحت قائمة الفصول. القاعدة: بانرات فقط،
   **ممنوع popunder/push/redirect** — تدمر ثقة القراء. لا إعلان داخل القارئ.
+
+## تحديث 2026-08-27 (مراجعة أمان + أداء)
+
+- **ثغرة `/img` (حرجة، أُصلحت):** كان الفحص `u.includes('mangadex')`، فأي رابط
+  تحته الكلمة يمرّ — `?u=https://example.com/?x=mangadex` كان يُرجع صفحة
+  example.com بـ200. أي: open proxy/SSRF + إمكانية تشغيل JS مهاجم على دوميننا
+  (سرقة/تخريب `localStorage`: تقدّم القراءة والمفضلة). الآن: `isAllowedImageUrl()`
+  بـallow-list على **hostname مُحلَّل** (`uploads/api.mangadex.org`,
+  `*.mangadex.org`, `*.mangadex.network`, 3asq, Team-X) + رفض أي رد
+  `content-type` ليس `image/*` (415) + `nosniff` + `Content-Disposition: inline`.
+  هذا أيضاً يُغلق الـopen redirect في fallback نهاية `/img`.
+  **مهم:** لا تُرجع فحص السلسلة أبداً — استعمل hostname دائماً.
+  عند نشر هذا الإصلاح: **افرِغ كاش nginx** (`rm -rf /var/cache/nginx/dzimg/*`)
+  وإلا يبقى nginx يخدم الردود الخاطئة المخزّنة سابقاً.
+- **تحقق UUID** في `/api/manga/:id`، `/api/manga/:id/chapters`،
+  `/api/chapter/:id/pages` (كل ما ليس `asq:`/`tx:`) — يمنع حقن مسار في روابط
+  MangaDex ويرد 404 عندنا بدل تمرير طلبات عابثة.
+- **سقف كاش الذاكرة** (`CACHE_MAX_ENTRIES=1500`, FIFO عبر `cacheSet()`) — كانت
+  المداخل المنتهية لا تُحذف أبداً فالذاكرة تكبر مع كل بناء كتالوغ.
+- **حد تحويلات sharp** (`IMG_CONCURRENCY=3` + `sharp.concurrency(1)`) — فصل واحد
+  = 30+ تحويلة WebP؛ عدة قرّاء كانوا يُشبعون الـCPU.
+- **nginx rate limiting** (خارج المستودع، في `conf.d/00-perf.conf` +
+  `sites-enabled/dzmanga-domain`): `dzapi` 10r/s burst=40 على `/api/`،
+  `dzimg_rl` 40r/s burst=120 على `/img`، `limit_req_status 429`.
+- **صوت النقر على كروت المانجا:** `SELECTOR` و`POP_SEL` في `app.js` صارا يشملان
+  `.card,.live-item,.cont-card,.chapter-row,.hero-slide`. أبقِ القائمتين متطابقتين.
+- **باقٍ لم يُنفَّذ:** `Content-Security-Policy` (يحتاج ضبطاً دقيقاً مع سكربتات
+  الإعلانات)، واختبارات/health-check يجرّب رئيسية→مانجا→فصل→أول صورة.

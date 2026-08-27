@@ -4,10 +4,29 @@ const path = require('path');
 const asq = require('./sources/asq');
 const tx = require('./sources/teamx');
 const sharp = require('sharp');
+sharp.concurrency(1); // انظر IMG_CONCURRENCY أدناه
 
 // حدود ضغط الصور في بروكسي /img (انظر التعليق هناك)
 const IMG_MAX_WIDTH = parseInt(process.env.IMG_MAX_WIDTH, 10) || 1080;
 const IMG_WEBP_QUALITY = parseInt(process.env.IMG_WEBP_QUALITY, 10) || 78;
+
+// حد تحويلات sharp المتوازية (2026-08-27): فصل واحد = 30+ تحويلة WebP، ومع
+// عدة قرّاء في نفس الوقت الـCPU يُشبع والسيرفر كله يصير بطيئاً. sharp نفسه
+// يستعمل عدة threads لكل صورة، لذا: thread واحد لكل صورة + طابور بعدد محدود.
+const IMG_CONCURRENCY = parseInt(process.env.IMG_CONCURRENCY, 10) || 3;
+let imgActive = 0;
+const imgQueue = [];
+async function withImgSlot(fn) {
+  if (imgActive >= IMG_CONCURRENCY) await new Promise((r) => imgQueue.push(r));
+  imgActive++;
+  try {
+    return await fn();
+  } finally {
+    imgActive--;
+    const next = imgQueue.shift();
+    if (next) next();
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -57,8 +76,16 @@ app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: tru
 app.use(express.json());
 
 // simple in-memory cache to keep things fast + light on MangaDex rate limits
+// سقف للحجم (2026-08-27): كانت المداخل المنتهية لا تُحذف أبداً، فالذاكرة تكبر
+// مع كل بناء كتالوغ (مئات الطلبات كل 3 ساعات). Map في JS يحفظ ترتيب الإدخال،
+// فحذف أول مفتاح = إخراج الأقدم (FIFO بسيط).
 const cache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_MAX_ENTRIES = parseInt(process.env.CACHE_MAX_ENTRIES, 10) || 1500;
+function cacheSet(url, data) {
+  cache.set(url, { t: Date.now(), data });
+  while (cache.size > CACHE_MAX_ENTRIES) cache.delete(cache.keys().next().value);
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -105,7 +132,7 @@ async function cachedFetchJson(url, retries = 4) {
       // before giving up.
       try {
         const data = await fetchViaJinaProxy(url);
-        cache.set(url, { t: Date.now(), data });
+        cacheSet(url, data);
         return data;
       } catch (proxyErr) {
         throw networkErr;
@@ -125,7 +152,7 @@ async function cachedFetchJson(url, retries = 4) {
     }
     if (!res.ok) throw new Error(`MangaDex ${res.status} for ${url}`);
     const data = await res.json();
-    cache.set(url, { t: Date.now(), data });
+    cacheSet(url, data);
     return data;
   }
 }
@@ -690,14 +717,19 @@ app.get('/api/search', async (req, res) => {
 // لكل زائر/بوت يفتح الرابط الفاسد. (اكتُشف 2026-08-26 عبر journalctl: نفس
 // الخطأ يتكرر كل 15-40 دقيقة من زحف meta-externalagent على /manga/null.)
 const INVALID_ID = /^(null|undefined)?$/i;
+// معرّف MangaDex هو UUID دائماً. التحقق منه (2026-08-27) يمنع حقن مسار في
+// رابط الـAPI (مثل `..%2F..%2F`) ويوقف الطلبات العابثة عندنا بدل تمريرها.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function badId() {
+  const e = new Error('invalid manga id');
+  e.status = 404;
+  return e;
+}
 async function loadMangaDetail(id) {
-  if (INVALID_ID.test(id)) {
-    const e = new Error('invalid manga id');
-    e.status = 404;
-    throw e;
-  }
+  if (INVALID_ID.test(id)) throw badId();
   if (id.startsWith('asq:')) return asq.detail(id.slice(4));
   if (id.startsWith('tx:')) return tx.detail(id.slice(3));
+  if (!UUID_RE.test(id)) throw badId();
   const url = `${MD_BASE}/manga/${id}?includes[]=cover_art&includes[]=author`;
   const data = await cachedFetchJson(url);
   const manga = mapManga(data.data);
@@ -736,6 +768,7 @@ app.get('/api/manga/:id/chapters', async (req, res) => {
       return res.status(502).json({ error: 'failed to load chapters' });
     }
   }
+  if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'manga not found' });
   try {
     let offset = 0;
     let all = [];
@@ -805,6 +838,7 @@ app.get('/api/chapter/:id/pages', async (req, res) => {
       return res.status(502).json({ error: 'failed to load chapter pages' });
     }
   }
+  if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'chapter not found' });
   try {
     const data = await cachedFetchJson(`${MD_BASE}/at-home/server/${req.params.id}`);
     const { baseUrl, chapter } = data;
@@ -819,11 +853,35 @@ app.get('/api/chapter/:id/pages', async (req, res) => {
 });
 
 // Image proxy: avoids client-side CORS/hotlink issues, keeps requests light via caching
+//
+// أمان (2026-08-27): الفحص القديم كان `u.includes('mangadex')` — أي رابط تحته
+// الكلمة في أي موضع كان يمرّ (مثال مؤكَّد: /img?u=https://example.com/?x=mangadex
+// كان يُرجع صفحة example.com بـ200). هذا كان يعني: (1) open proxy/SSRF — أي أحد
+// يستعمل هذا السيرفر لتحميل محتوى خارجي، (2) أخطر: الرد يخرج بـContent-Type
+// نصي/HTML من دوميننا، فيمكن تشغيل JS مهاجم في سياق dzmanga وقراءة localStorage
+// (تقدّم القراءة/المفضلة). القاعدة الآن: allow-list على hostname مُحلَّل فعلياً
+// (لا includes على السلسلة أبداً) + رفض أي رد ليس صورة.
+const IMG_HOSTS = new Set(['uploads.mangadex.org', 'api.mangadex.org', 'mangadex.org']);
+function isAllowedImageUrl(u) {
+  if (typeof u !== 'string' || !u) return false;
+  let parsed;
+  try {
+    parsed = new URL(u);
+  } catch (e) {
+    return false;
+  }
+  if (parsed.protocol !== 'https:') return false;
+  const host = parsed.hostname.toLowerCase();
+  const mdHost =
+    IMG_HOSTS.has(host) || host.endsWith('.mangadex.org') || host.endsWith('.mangadex.network');
+  // صور فصول MangaDex تُخدَم من عُقد MangaDex@Home بأسماء مضيف متغيرة
+  // (*.mangadex.network) — لذلك النطاق مسموح كامل، لا رابط بعينه.
+  return mdHost || asq.isAsqImage(u) || tx.isTxImage(u);
+}
+
 app.get('/img', async (req, res) => {
   const u = req.query.u;
-  const allowed =
-    u && u.startsWith('https://') && (u.includes('mangadex') || asq.isAsqImage(u) || tx.isTxImage(u));
-  if (!allowed) {
+  if (!isAllowedImageUrl(u)) {
     return res.status(400).send('bad url');
   }
   try {
@@ -849,8 +907,14 @@ app.get('/img', async (req, res) => {
       signal: AbortSignal.timeout(isAsq || isTx ? 15000 : 6000),
     });
     if (!upstream.ok) return res.status(upstream.status).end();
+    // دفاع ثانٍ (2026-08-27): لا نُعيد أبداً رداً ليس صورة. حتى لو صار خطأ في
+    // الـallow-list يوماً، لا يمكن تحويل هذا المسار إلى تقديم HTML/JS من دوميننا.
+    const upstreamType = String(upstream.headers.get('content-type') || '').toLowerCase();
+    if (!upstreamType.startsWith('image/')) return res.status(415).send('not an image');
     const buf = Buffer.from(await upstream.arrayBuffer());
     res.set('Cache-Control', 'public, max-age=604800, immutable');
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Content-Disposition', 'inline');
     // ضغط الصور (2026-08-22): صفحات الفصول من المصادر تصل بأحجام ضخمة
     // (قيست صفحات 2-6MB — فصل واحد ~40-50MB!). قاتل للزوار على داتا موبايل
     // في الجزائر ويأكل bandwidth السيرفر. نحوّل لـWebP بعرض أقصى 1080px
@@ -859,10 +923,12 @@ app.get('/img', async (req, res) => {
     // معطوبة/صيغة غريبة) نرجع الأصل كما كان — لا شاشة بيضاء أبداً.
     if (req.query.raw !== '1') {
       try {
-        const out = await sharp(buf, { failOn: 'none' })
-          .resize({ width: IMG_MAX_WIDTH, withoutEnlargement: true })
-          .webp({ quality: IMG_WEBP_QUALITY })
-          .toBuffer();
+        const out = await withImgSlot(() =>
+          sharp(buf, { failOn: 'none' })
+            .resize({ width: IMG_MAX_WIDTH, withoutEnlargement: true })
+            .webp({ quality: IMG_WEBP_QUALITY })
+            .toBuffer()
+        );
         // نادراً يكون الأصل أصغر (أيقونات صغيرة مثلاً) — نرسل الأصغر دائماً
         if (out.length < buf.length) {
           res.set('Content-Type', 'image/webp');
@@ -872,7 +938,7 @@ app.get('/img', async (req, res) => {
         console.error('img resize failed (serving original):', e.message);
       }
     }
-    res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
+    res.set('Content-Type', upstreamType || 'image/jpeg');
     res.send(buf);
   } catch (e) {
     // Server-side fetch failed — most likely the same network-level IP

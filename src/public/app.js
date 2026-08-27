@@ -1307,7 +1307,12 @@ router();
 /* ── أصوات مفاتيح الكيبورد (Web Audio، بدون ملفات) ── */
 (() => {
   let ctx = null;
-  const SELECTOR = '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a';
+  // 2026-08-27: أيقونات/كروت المانجا صارت تصدر نفس نقرة الكيبورد مثل أزرار
+  // الشريط السفلي (طلب صاحب المنتج) — نفس المجموعة المستعملة في تأثير .key-pop
+  // أسفل هذا الملف، فالصوت والحركة يبقيان متطابقين. لا يوجد صوت داخل القارئ
+  // (تصفّح الصفحات) حتى لا يزعج القراءة.
+  const SELECTOR =
+    '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a,.card,.live-item,.cont-card,.chapter-row,.hero-slide';
   // تفضيل الصوت (زر 🔊 في الشريط العلوي) — مفعّل افتراضياً
   const SOUND_KEY = 'dz_sound_v1';
   const soundOn = () => localStorage.getItem(SOUND_KEY) !== 'off';
@@ -1369,7 +1374,7 @@ router();
 /* ارتداد نابضي عند الإفلات: نضيف .key-pop لتشغيل انميشن keyPop/cardPop ثم ننزعه */
 (() => {
   const POP_SEL =
-    '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a,.card,.live-item,.cont-card';
+    '.btn,.tab,.src-tab,.mode-toggle,.page-btn,.to-top,.hero-cta,.bottom-nav a,.card,.live-item,.cont-card,.chapter-row,.hero-slide';
   function pop(e) {
     const el = e.target.closest(POP_SEL);
     if (!el) return;
