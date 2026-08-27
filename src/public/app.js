@@ -206,8 +206,34 @@ function preloadImages(urls) {
 
 const PLACEHOLDER = 'https://placehold.co/260x380/171f1a/8a9a8f?text=dzmanga';
 
-function sourceLabel(src) {
-  if (src === 'asq') return 'العاشق';
+// شارة البطاقة تصف *نوع* العمل (مانجا/مانهوا) ولا تذكر اسم المصدر: صاحب
+// الموقع طلب (2026-08-27) إخفاء أسماء المصادر من الواجهة مع الحفاظ على الفرز.
+// ملاحظة: هذا تغيير واجهة فقط — الكريدت يبقى داخل صفحة الفصل (creditLabel).
+function typeLabel(src, item) {
+  // Team-X يرجع النوع بالعربية ("مانهوا كورية"…) — الشارة صغيرة فنأخذ أول كلمة.
+  const t = item && item.type ? String(item.type).trim().split(/\s+/)[0] : '';
+  if (t && t.length <= 10) return t;
+  if (src === 'tx') return 'مانهوا';
+  return 'مانجا';
+}
+
+// كريدت فريق الترجمة — يظهر داخل صفحة القراءة وحدها. لا تحذفه: إخفاء الكريدت
+// كلياً هو أسرع طريق لبلاغ DMCA من فرق الترجمة العربية يشيل صفحاتنا من جوجل.
+// وصف العاشق يحتوي غالباً نصّه التسويقي ("...على موقع العاشق للمانجا") ووصف
+// MangaDex إنجليزي — الاثنان يظهران للقارئ في صفحة المانجا. نفس المنطق موجود
+// في السيرفر (safeMetaDescription) للـmeta؛ هذه نسخته للواجهة. (2026-08-27)
+const SOURCE_BRAND_LEAK_RE = /العاشق|3asq|mangadex|team-?x/i;
+function safeDesc(raw, title) {
+  const d = String(raw || '').trim();
+  const arabic = /[\u0600-\u06FF]/.test(d);
+  if (!d || !arabic || SOURCE_BRAND_LEAK_RE.test(d))
+    return `اقرأ ${title || 'هذا العمل'} مترجماً للعربية مجاناً على dzmanga — قارئ سريع وخفيف بدون تسجيل.`;
+  return d;
+}
+
+function creditLabel(src, item) {
+  if (item && item.team) return String(item.team);
+  if (src === 'asq') return 'مانجا العاشق';
   if (src === 'tx') return 'Team-X';
   return 'MangaDex';
 }
@@ -245,7 +271,7 @@ function cardHtml(m) {
   return `<a class="card" href="#/manga/${encodeURIComponent(m.id)}">
     <div class="card-art">
       <img src="${cover}" loading="lazy" alt="${escapeHtml(m.title)}" referrerpolicy="no-referrer" />
-      <span class="card-src ${sourceClass(m.source)}">${sourceLabel(m.source)}</span>
+      <span class="card-src ${sourceClass(m.source)}">${escapeHtml(typeLabel(m.source, m))}</span>
       <div class="card-chips">${chapterBadge}${ratingBadge}</div>
     </div>
     <div class="title">${escapeHtml(m.title)}</div>
@@ -285,7 +311,7 @@ function liveItemHtml(m) {
   return `<a class="live-item" href="#/manga/${encodeURIComponent(m.id)}">
     <img src="${cover}" loading="lazy" referrerpolicy="no-referrer" />
     <span class="t">${escapeHtml(m.title)}</span>
-    <span class="src ${sourceClass(m.source)}">${sourceLabel(m.source)}</span>
+    <span class="src ${sourceClass(m.source)}">${escapeHtml(typeLabel(m.source, m))}</span>
   </a>`;
 }
 
@@ -395,21 +421,21 @@ async function renderHome() {
     const mdData = data.md || { latest: [], popular: [], genres: [] };
     let html = heroHtml(data.hero);
     html += continueHtml();
-    html += sectionHtml('sparkle', 'آخر التحديثات — مانجا العاشق', asqData.latest, {
+    html += sectionHtml('sparkle', 'آخر التحديثات', asqData.latest, {
       href: '#/browse/asq/latest',
       label: 'الكل',
     });
-    html += sectionHtml('fire', 'الأكثر شعبية — مانجا العاشق', asqData.popular, {
+    html += sectionHtml('fire', 'الأكثر شعبية', asqData.popular, {
       href: '#/browse/asq/popular',
       label: 'الكل',
     });
     html += '<div class="ad-slot" data-ad="native"></div>';
     const txData = data.tx || { manhwa: [], manhua: [] };
-    html += sectionHtml('sword', 'مانهوا كورية — Team-X', txData.manhwa, {
+    html += sectionHtml('sword', 'مانهوا كورية', txData.manhwa, {
       href: '#/browse/tx/manhwa',
       label: 'الكل',
     });
-    html += sectionHtml('portal', 'مانها صينية — Team-X', txData.manhua, {
+    html += sectionHtml('portal', 'مانها صينية', txData.manhua, {
       href: '#/browse/tx/manhua',
       label: 'الكل',
     });
@@ -419,11 +445,11 @@ async function renderHome() {
         label: 'الكل',
       });
     }
-    html += sectionHtml('sparkle', 'آخر التحديثات — MangaDex', mdData.latest, {
+    html += sectionHtml('sparkle', 'إضافات جديدة', mdData.latest, {
       href: '#/browse/md',
       label: 'الكل',
     });
-    html += sectionHtml('fire', 'الأكثر شعبية — MangaDex', mdData.popular);
+    html += sectionHtml('fire', 'الأكثر شعبية عالمياً', mdData.popular);
     app.innerHTML = html;
     startHeroRotation();
   } catch (e) {
@@ -464,13 +490,13 @@ async function renderSearch(q) {
     }
     let html = '';
     if (asqRes.length)
-      html += `<h2 class="section">${icon('book')} مانجا العاشق (${asqRes.length})</h2>
+      html += `<h2 class="section">${icon('book')} مانجا (${asqRes.length})</h2>
         <div class="grid">${asqRes.map(cardHtml).join('')}</div>`;
     if (txRes.length)
-      html += `<h2 class="section">${icon('sword')} Team-X (${txRes.length})</h2>
+      html += `<h2 class="section">${icon('sword')} مانهوا ومانها (${txRes.length})</h2>
         <div class="grid">${txRes.map(cardHtml).join('')}</div>`;
     if (mdRes.length)
-      html += `<h2 class="section">${icon('grid')} MangaDex (${mdRes.length})</h2>
+      html += `<h2 class="section">${icon('grid')} نتائج أخرى (${mdRes.length})</h2>
         <div class="grid">${mdRes.map(cardHtml).join('')}</div>`;
     app.innerHTML = html;
   } catch (e) {
@@ -542,7 +568,9 @@ async function renderManga(id) {
     const progress = getProgress()[manga.id];
     const resumeIdx = progress ? progress.idx : 0;
     const resumeChapter = chapters[resumeIdx] || chapters[0];
-    const metaBits = [manga.author, manga.status, manga.year, manga.team].filter(Boolean);
+    // ملاحظة: أزلنا manga.team من هذا السطر لأن قيمته عند Team-X هي اسم المصدر
+    // نفسه؛ الكريدت الآن داخل صفحة الفصل فقط (طلب صاحب الموقع 2026-08-27).
+    const metaBits = [manga.author, manga.status, manga.year].filter(Boolean);
     app.innerHTML = `
       <a class="backlink" href="#/">&rarr; رجوع</a>
       <div class="detail">
@@ -550,12 +578,12 @@ async function renderManga(id) {
         <div class="info">
           <h1>${escapeHtml(manga.title)}</h1>
           <div class="meta">
-            <span class="card-src ${sourceClass(manga.source)}" style="position:static">${sourceLabel(manga.source)}</span>
+            <span class="card-src ${sourceClass(manga.source)}" style="position:static">${escapeHtml(typeLabel(manga.source, manga))}</span>
             ${manga.rating ? `<span class="dot-sep">★ ${manga.rating}</span>` : ''}
             ${metaBits.map((b) => `<span class="dot-sep">${escapeHtml(String(b))}</span>`).join('')}
           </div>
           <div class="tags">${(manga.tags || []).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-          <div class="desc">${escapeHtml(manga.description) || 'لا يوجد وصف.'}</div>
+          <div class="desc">${escapeHtml(safeDesc(manga.description, manga.title))}</div>
           <div class="detail-actions">
             ${
               resumeChapter
@@ -716,6 +744,7 @@ async function renderReader(chapterId, mangaId, idx, forceVert = false) {
             : `<div class="empty" style="padding:20px 0">هذا آخر فصل متوفر حالياً.</div>`
         }
         <a class="btn" href="#/manga/${encodeURIComponent(mangaId)}">كل الفصول</a>
+        <div class="credit-line">الترجمة: ${escapeHtml(creditLabel(manga.source, manga))}</div>
       </div>
       ${shareRow(
         `${location.origin}/read/${encodeURIComponent(mangaId)}/${encodeURIComponent(current ? current.id : '')}`,
@@ -1057,9 +1086,9 @@ async function renderBrowse(source = 'asq', view = '') {
 
   const sourceTabs = `
     <div class="source-switch">
-      <button class="src-tab ${isAsq ? 'active' : ''}" data-src="asq">مانجا العاشق</button>
-      <button class="src-tab ${isTx ? 'active' : ''}" data-src="tx">مانهوا (Team-X)</button>
-      <button class="src-tab ${!isAsq && !isTx ? 'active' : ''}" data-src="md">MangaDex</button>
+      <button class="src-tab ${isAsq ? 'active' : ''}" data-src="asq">مانجا</button>
+      <button class="src-tab ${isTx ? 'active' : ''}" data-src="tx">مانهوا</button>
+      <button class="src-tab ${!isAsq && !isTx ? 'active' : ''}" data-src="md">أرشيف عالمي</button>
     </div>`;
 
   const asqTabs = `
@@ -1156,12 +1185,12 @@ async function renderBrowse(source = 'asq', view = '') {
       if (data.indexing)
         return {
           retryAfter: 3000,
-          message: 'جارِ فهرسة كتالوج MangaDex العربي الكامل (~700+ مانجا)، ثوانٍ معدودة…',
+          message: 'جارِ فهرسة الأرشيف العربي الكامل (~700+ مانجا)، ثوانٍ معدودة…',
         };
       return {
         items: data.items,
         hasNext: data.page < data.totalPages,
-        note: `<b>${data.total}</b> مانجا عربية على MangaDex`,
+        note: `<b>${data.total}</b> مانجا عربية في الأرشيف`,
       };
     });
     return;

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <!--SEO:START-->
 <title>dzmanga — قارئ مانجا عربي مجاني</title>
-<meta name="description" content="اقرأ المانجا المترجمة للعربية مجاناً — ون بيس، بيرسيرك ومئات الأعمال من مانجا العاشق وMangaDex. قارئ سريع وخفيف بدون إعلانات منبثقة ولا تسجيل." />
+<meta name="description" content="اقرأ المانجا المترجمة للعربية مجاناً — ون بيس، بيرسيرك ومئات المانجا والمانهوا. قارئ سريع وخفيف بدون إعلانات منبثقة ولا تسجيل." />
 <link rel="canonical" href="https://www.dzmanga.dpdns.org/" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="dzmanga" />
@@ -571,6 +571,11 @@
   /* زر كتم/تشغيل أصوات النقر في الشريط العلوي */
   .sound-toggle{padding:8px 10px !important;font-size:16px;line-height:1;min-width:44px}
   @media (max-width:560px){ .sound-toggle{min-width:40px;padding:7px 8px !important} }
+
+  /* كريدت فريق الترجمة داخل صفحة القراءة — صغير وهادئ لا يزاحم الأزرار، لكنه
+     موجود (يحمينا من بلاغات فرق الترجمة العربية). لا تحذفه. */
+  .credit-line{width:100%;text-align:center;font-size:12px;opacity:.75;margin-top:8px}
+  body:has(.reader) .credit-line{color:#e8d29b}
 
   /* ===== SHARE ROW (2026-08-27) ===== */
   /* صفّ مشاركة تحت الفصول وفي نهاية القارئ. الألوان من متغيرات السمة حتى ما
