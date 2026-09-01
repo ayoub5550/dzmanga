@@ -727,3 +727,27 @@ Google Digital Asset Links API (`digitalassetlinks.googleapis.com/v1/statements:
 - سجلات nginx سترى IPات Cloudflare بدل الزوار — استعمل هيدر `CF-Connecting-IP`
   لمعرفة الـIP الحقيقي (مهم لتحليل الزحف وحظر المسيئين).
 - كلمة سر DigitalPlat أُعيد تعيينها في 2026-09-01 (القديمة لم تعد صالحة) — اسأل أيوب عنها.
+
+## 2026-09-01 — نشر التطبيق على Uptodown (بطلب من أيوب)
+
+حساب Uptodown Developers: `ayoubteke12@gmail.com` (اسم الحساب "ayoub 6"). الدخول عبر
+`https://developers.uptodown.com/` → يعيد التوجيه إلى `https://www.uptodown.dev/`.
+**ملاحظة تقنية:** الدخول المباشر إلى uptodown.dev كثيراً ما يعطي "410 Gone" (حظر IP
+لمراكز البيانات) — ادخل دائماً عبر developers.uptodown.com وأعد المحاولة بجلسة جديدة عند 410.
+
+- **App ID:** `1000845195` — لوحة التطبيق:
+  `https://www.uptodown.dev/apps/1000845195/information`
+- **الحالة:** أُرسل للمراجعة في 2026-09-01 → **PENDING REVISION** (بانتظار فريق Uptodown).
+- **APK المرفوع:** نفس ملف الموقع `dist-app/dzmanga.apk` (TWA، package `org.dpdns.dzmanga`،
+  الإصدار 1.0.0/code 1). Uptodown **لا يعيد توقيع** الـAPK — لا حاجة لتعديل assetlinks.json
+  (بعكس Amazon Appstore).
+- **بيانات القائمة:** الاسم "dzmanga — قارئ مانجا عربي"، فئة Comics & Book Readers،
+  PEGI 16، الجنسية Algeria، المطوّر Ayoub Teke، الموقع الرسمي https://www.dzmanga.dpdns.org،
+  أيقونة 512×512، 4 لقطات شاشة حقيقية (412×915)، وصف قصير+كامل بالإنجليزية والعربية.
+- **قيود النموذج:** الوصف القصير ≤ 70 حرفاً؛ الوصف الكامل ≥ 50 كلمة (عدّاد الكلمات
+  لا يحسب العربية جيداً لكن الحفظ يقبلها — المهم أن توجد نسخة إنجليزية ≥ 50 كلمة).
+- **Amazon Appstore (نفس اليوم):** الحساب جاهز (Customer ID `A186PYGSHHSX81`) لكن إنشاء
+  تطبيق **محظور حتى يكمل أيوب التحقق من الهوية** بوثيقة رسمية على
+  developer.amazon.com/settings/console/idv — لا يستطيع أي وكيل فعلها نيابة عنه.
+  تذكير: Amazon يعيد توقيع الـAPK — عند النشر هناك أضف بصمة شهادة Amazon إلى
+  `src/assetlinks.json`.
