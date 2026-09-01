@@ -1029,6 +1029,41 @@ function chapterCrawlNav(mangaId, chapters, mangaTitle) {
   return `<nav class="crawl-links" aria-label="كل الفصول" style="${SR_ONLY_STYLE}">${links}</nav>`;
 }
 
+// عنوان H1 حقيقي في الـHTML الخام (2026-09-01) — كانت كل الصفحات بلا <h1> إطلاقاً
+// (تحقّقنا بزحف حقيقي: 0 وسوم h1 على /، /manga/:id، /read/..، /genre/..).
+// جوجل يستعمل الـh1 كإشارة أساسية لموضوع الصفحة. نضعه في نفس شريحة
+// <!--CRAWL_LINKS--> بأسلوب sr-only القياسي (نفس نص الواجهة، فلا cloaking).
+function srHeading(h1, para) {
+  if (!h1) return '';
+  return (
+    `<div class="crawl-heading" style="${SR_ONLY_STYLE}">` +
+    `<h1>${escHtml(h1)}</h1>` +
+    (para ? `<p>${escHtml(para)}</p>` : '') +
+    `</div>`
+  );
+}
+
+// روابط الفصول المجاورة على صفحة الفصل (2026-09-01). صفحة الفصل كانت تحتوي 349
+// حرفاً فقط و3 روابط → محتوى رقيق جداً (thin content) وهي 92% من روابط الـsitemap،
+// فجوجل يزحفها ولا يفهرسها. هذه الروابط تربطها بباقي فصول العمل نفسه.
+const NEARBY_CHAPTERS = 20;
+
+function nearbyChapterNav(mangaId, chapters, idx, mangaTitle) {
+  if (!chapters || !chapters.length) return '';
+  const from = Math.max(0, idx - NEARBY_CHAPTERS);
+  const slice = chapters.slice(from, idx + NEARBY_CHAPTERS + 1).filter((c) => c && c.id && c.id !== chapters[idx].id);
+  if (!slice.length) return '';
+  const links = slice
+    .map(
+      (c) =>
+        `<a href="/read/${encodeURIComponent(mangaId)}/${encodeURIComponent(c.id)}">${escHtml(
+          `${mangaTitle || ''} الفصل ${c.chapter ?? ''}`.trim()
+        )}</a>`
+    )
+    .join('');
+  return `<nav class="crawl-links" aria-label="فصول قريبة" style="${SR_ONLY_STYLE}">${links}</nav>`;
+}
+
 function shufflePick(arr, n) {
   const copy = arr.slice();
   for (let i = copy.length - 1; i > 0; i--) {
@@ -1181,12 +1216,23 @@ async function buildPagesSitemap() {
   urls.set(`${PUBLIC_ORIGIN}/download`, '0.9');
   for (const g of asq.GENRES) urls.set(`${PUBLIC_ORIGIN}/genre/${g.key}`, '0.8');
   const asqHome = await cachedAsqHome().catch(() => null);
+  const freshUrls = new Set([`${PUBLIC_ORIGIN}/`, `${PUBLIC_ORIGIN}/latest`]);
   for (const list of [asqHome?.popular, asqHome?.latest]) {
     for (const m of list || []) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.8');
   }
+  for (const m of asqHome?.latest || []) {
+    if (m.id) freshUrls.add(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`);
+  }
   for (const m of fullCatalog.items) if (m.id) urls.set(`${PUBLIC_ORIGIN}/manga/${encodeURIComponent(m.id)}`, '0.6');
+  // lastmod (2026-09-01): الخريطة كانت بلا أي <lastmod>، فجوجل ما عندهش إشارة
+  // على أن صفحة عمل ما تحدّثت (فصل جديد) ويعيد الزحف ببطء. الأعمال الموجودة في
+  // قائمة "الأحدث" عند المصدر تحدّثت فعلاً اليوم، فنعطيها تاريخ اليوم فقط.
+  const today = new Date().toISOString().slice(0, 10);
   const body = [...urls.entries()]
-    .map(([loc, pr]) => `<url><loc>${escXml(loc)}</loc><priority>${pr}</priority></url>`)
+    .map(
+      ([loc, pr]) =>
+        `<url><loc>${escXml(loc)}</loc>${freshUrls.has(loc) ? `<lastmod>${today}</lastmod>` : ''}<priority>${pr}</priority></url>`
+    )
     .join('\n');
   pagesSitemap = {
     xml: `${SITEMAP_HEAD}\n${body}\n</urlset>`,
@@ -1384,7 +1430,15 @@ app.get('/', async (req, res) => {
   );
   try {
     const top = await topCrawlItems(90);
-    html = html.replace('<!--CRAWL_LINKS-->', landingLinksNav() + crawlLinksNav(top, 'روابط سريعة لأشهر المانجا'));
+    html = html.replace(
+      '<!--CRAWL_LINKS-->',
+      srHeading(
+        'قارئ مانجا عربي — اقرأ المانجا والمانهوا المترجمة مجاناً',
+        'دي زد مانجا: مئات أعمال المانجا والمانهوا المترجمة للعربية، فصول جديدة يومياً، قارئ سريع بدون تسجيل ولا إعلانات منبثقة.'
+      ) +
+        landingLinksNav() +
+        crawlLinksNav(top, 'روابط سريعة لأشهر المانجا')
+    );
   } catch (e) {
     console.error('homepage crawl links failed:', e.message);
     html = html.replace('<!--CRAWL_LINKS-->', '');
@@ -1411,6 +1465,7 @@ app.get('/manga/:id', async (req, res) => {
   let html = INDEX_HTML();
   let related = [];
   let chapterNav = '';
+  let mangaHeading = '';
   try {
     const m = await loadMangaDetail(id);
     const title = `${m.title} — اقرأ بالعربية مجاناً | dzmanga`;
@@ -1446,6 +1501,10 @@ app.get('/manga/:id', async (req, res) => {
     const pool = await crawlCandidatePool();
     related = shufflePick(pool.filter((x) => x.id !== id), 5);
     chapterNav = chapterCrawlNav(id, await cachedChapters(id).catch(() => []), m.title);
+    mangaHeading = srHeading(
+      `مانجا ${m.title} مترجمة للعربية`,
+      safeMetaDescription(m.description, m.title).slice(0, 400)
+    );
   } catch (e) {
     // معرّف فاسد فعلياً (null/undefined/فارغ) — رابط تالف، ليس عملاً حقيقياً
     // اختفى مؤقتاً. نرجّع 404 حقيقي بدل 200 حتى ما يفهرسه جوجل كصفحة صالحة.
@@ -1454,7 +1513,7 @@ app.get('/manga/:id', async (req, res) => {
     }
     console.error('seo page failed for', id, e.message); // fall through: serve default head
   }
-  html = html.replace('<!--CRAWL_LINKS-->', chapterNav + crawlLinksNav(related, 'أعمال مشابهة'));
+  html = html.replace('<!--CRAWL_LINKS-->', mangaHeading + chapterNav + crawlLinksNav(related, 'أعمال مشابهة'));
   // open the right SPA view for human visitors (bots just read the meta)
   html = html.replace(
     '</head>',
@@ -1531,7 +1590,10 @@ app.get('/genre/:key', async (req, res) => {
     /<!--SEO:START-->[\s\S]*?<!--SEO:END-->/,
     `<!--SEO:START-->${seoHead({ title, desc, url, ld: itemListLd(items, title, url) })}\n<!--SEO:END-->`
   );
-  html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(items, `مانجا ${g.label}`));
+  html = html.replace(
+    '<!--CRAWL_LINKS-->',
+    srHeading(`مانجا ${g.label} مترجمة للعربية`, desc) + crawlLinksNav(items, `مانجا ${g.label}`)
+  );
   html = html.replace(
     '</head>',
     `<script>if(!location.hash)location.hash='#/browse/asq/genre-${g.key}';</script></head>`
@@ -1560,7 +1622,10 @@ app.get('/latest', async (req, res) => {
     /<!--SEO:START-->[\s\S]*?<!--SEO:END-->/,
     `<!--SEO:START-->${seoHead({ title, desc, url, ld: itemListLd(items, title, url) })}\n<!--SEO:END-->`
   );
-  html = html.replace('<!--CRAWL_LINKS-->', crawlLinksNav(items, 'أحدث التحديثات'));
+  html = html.replace(
+    '<!--CRAWL_LINKS-->',
+    srHeading('أحدث فصول المانجا المترجمة للعربية', desc) + crawlLinksNav(items, 'أحدث التحديثات')
+  );
   html = html.replace('</head>', `<script>if(!location.hash)location.hash='#/browse/asq/latest';</script></head>`);
   res.set('Cache-Control', 'public, max-age=300').type('html').send(html);
 });
@@ -1668,7 +1733,10 @@ ${next ? `<link rel="next" href="${escHtml(readUrl(mangaId, next.id))}" />` : ''
       prev ? `<a href="${escHtml(readUrl(mangaId, prev.id))}">${escHtml(`الفصل ${prev.chapter ?? ''}`)}</a>` : '',
       next ? `<a href="${escHtml(readUrl(mangaId, next.id))}">${escHtml(`الفصل ${next.chapter ?? ''}`)}</a>` : '',
     ].join('');
-    nav = `<nav class="crawl-links" aria-label="تنقّل الفصول" style="${SR_ONLY_STYLE}">${navLinks}</nav>`;
+    nav =
+      srHeading(`مانجا ${m.title} الفصل ${num} مترجم`, desc) +
+      `<nav class="crawl-links" aria-label="تنقّل الفصول" style="${SR_ONLY_STYLE}">${navLinks}</nav>` +
+      nearbyChapterNav(mangaId, chapters, idx, m.title);
   } catch (e) {
     if (e.status === 404) {
       return res.status(404).type('html').send(INDEX_HTML().replace('<!--CRAWL_LINKS-->', ''));
