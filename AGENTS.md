@@ -751,6 +751,12 @@ Google Digital Asset Links API (`digitalassetlinks.googleapis.com/v1/statements:
   developer.amazon.com/settings/console/idv — لا يستطيع أي وكيل فعلها نيابة عنه.
   تذكير: Amazon يعيد توقيع الـAPK — عند النشر هناك أضف بصمة شهادة Amazon إلى
   `src/assetlinks.json`.
+- **إعادة فحص Amazon (نفس اليوم مساءً، 21:30):** تسجيل الدخول نجح (الحساب الآن محمي
+  بـ2FA عبر تطبيق authenticator — كل دخول يحتاج كوداً من أيوب). مستجد إيجابي:
+  ظهرت رسالة **"Your account review is complete"** ✅ — مراجعة الحساب اكتملت.
+  العائق الوحيد المتبقي: **التحقق من الهوية (IDV)** — زر "Add New App" ما يزال معطلاً
+  حتى يرفع أيوب وثيقة هوية رسمية بنفسه (الاسم القانوني في Settings → Company Profile
+  يجب أن يطابق الوثيقة حرفياً). App List (0).
 
 ## 2026-09-01 — مشكلة اسم الموقع في Google ("DigitalPlat Domain")
 
