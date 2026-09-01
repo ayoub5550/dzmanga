@@ -774,3 +774,25 @@ Google Digital Asset Links API (`digitalassetlinks.googleapis.com/v1/statements:
   يوم 2026-09-06.
 - **ملاحظة دائمة:** ما دام الدومين مجانياً تحت `dpdns.org`، قد يفضّل Google اسم
   الدومين الأم. الحل الجذري لهذه الفئة من المشاكل: دومين حقيقي (.com).
+
+## 2026-09-01 — Huawei AppGallery Connect: الدخول نجح، النشر موقوف على توثيق الهوية
+
+- **الحساب:** HUAWEI ID `hid82523374` (ayoubteke12@gmail.com). الدخول إلى AppGallery
+  Connect يتطلب كل مرة: كابتشا سحب-القطعة + كود تحقق يُرسل إلى Gmail (المتصفح غير
+  الموثوق يُعاد التحقق منه في كل جلسة جديدة).
+- **العائق (مؤكد بلقطة شاشة من #/myApp):** رسالة "Identity verification — Verify your
+  identity to access more ... services of AppGallery Connect". لا يمكن إنشاء أي تطبيق
+  قبل توثيق الهوية — نفس نمط Amazon تماماً.
+- **صفحة التوثيق:** `https://developer.huawei.com/consumer/en/verified/enrollment`.
+  الخيار المناسب: **Individual**. الوثائق المقبولة: بطاقة هوية / جواز سفر / رخصة سياقة /
+  وثائق بنكية. يجب أن يرفعها أيوب بنفسه (وثائق شخصية). المراجعة عادة 1-2 يوم عمل.
+  ملاحظة: الصفحة تشترط "supported countries/regions" — يجب التأكد أن الجزائر مدعومة
+  (رابط القائمة في نفس الصفحة).
+- **ملاحظة تقنية:** رابط التوثيق في صفحة #/myApp داخل iframe
+  (`.../agc/cdp/#/EmptyItem/serviceRequireApp/0/0`) — البحث عن النص في الصفحة الرئيسية
+  لا يجده.
+- **بعد قبول التوثيق:** إنشاء التطبيق + رفع نفس الـAPK المستخدم في Uptodown
+  (TWA `org.dpdns.dzmanga` v1.0.0). يجب التحقق حينها هل يعيد Huawei توقيع الـAPK
+  (إن أعاد التوقيع: أضف بصمة شهادته إلى `src/assetlinks.json`).
+- **وضع المتاجر (2026-09-01):** Uptodown ✅ مُرسل (Pending Revision، app 1000845195) —
+  Amazon ⏸️ IDV — Huawei ⏸️ IDV.
