@@ -702,3 +702,28 @@ Google Digital Asset Links API (`digitalassetlinks.googleapis.com/v1/statements:
 `3c8b262` كان commit إعلانات **غير مدفوع** يعيش على السيرفر وحده؛ دُفع إلى GitHub قبل
 أي نشر (`f33d89d`) ثم صار السيرفر مطابقاً لـ`origin/main`. **افحص دائماً**
 `git status && git log origin/main..HEAD` في `/opt/dzmanga` قبل أي `pull`.
+
+## 2026-09-01 — الموقع خلف Cloudflare (بطلب من أيوب)
+
+نُفّذ عبر لوحة Cloudflare (حساب `ayoub@tilde.team`) ولوحة DigitalPlat:
+
+- **Zone جديد:** `dzmanga.dpdns.org` على خطة Free — ممكن لأن `dpdns.org` ضمن
+  Public Suffix List. Zone ID: `9f51acfdd661559b207ac0a4b3a27b42`. الحالة: **active**.
+- **DNS في Cloudflare:** `@` و`www` → A `185.114.48.164`، **Proxied** (السحابة البرتقالية
+  تخفي IP السيرفر وتفعّل الكاش والحماية).
+- **SSL:** وضع **Full (strict)** — شهادة certbot الأصلية على السيرفر تبقى ضرورية
+  (تنتهي 2026-11-19، جدّدها). + **Always Use HTTPS** مفعّل.
+- **Nameservers في DigitalPlat:** بُدّلت من `dns1/dns2.digitalplat.org` إلى
+  `nolan.ns.cloudflare.com` + `tegan.ns.cloudflare.com`. سجلات DigitalPlat DNS تُحفظ
+  7 أيام فقط ثم تُحذف — الرجوع للوراء يتطلب إعادة إدخالها.
+- **تحقق حي بعد التفعيل:** apex وwww يردان HTTP/2 200 عبر Cloudflare (`server: cloudflare`)،
+  http→https يعيد 301، شهادة الحافة من Google Trust Services صالحة حتى 2026-11-30.
+
+### تنبيهات تشغيلية بعد Cloudflare
+
+- **تجديد certbot:** HTTP-01 يمر عبر البروكسي عادة (Always Use HTTPS لا يمس
+  `/.well-known/acme-challenge/`)، لكن إن فشل التجديد: بدّل مؤقتاً السجلات إلى
+  DNS-only أو استعمل شهادة Cloudflare Origin CA (صالحة 15 سنة).
+- سجلات nginx سترى IPات Cloudflare بدل الزوار — استعمل هيدر `CF-Connecting-IP`
+  لمعرفة الـIP الحقيقي (مهم لتحليل الزحف وحظر المسيئين).
+- كلمة سر DigitalPlat أُعيد تعيينها في 2026-09-01 (القديمة لم تعد صالحة) — اسأل أيوب عنها.
