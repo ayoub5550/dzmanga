@@ -4,8 +4,8 @@
 //   - Native Banner  30856951  key 108f270368660f9e4886a769d98415fe (invoke.js + container div)
 //   - Banner 300x250 key ec1e95038134fd0c0769cd035e966576 (atOptions iframe format)
 //   - Banner 320x50  key dcf2e11fac3a9544acd19ab8f8914202 (atOptions iframe format)
-//   - Banner 728x90  30952242 (أُنشئت 2026-08-27) — ضع مفتاحها في BANNERS.wide
-//     لتُستعمل على الشاشات >=900px بدل 300x250 (كود الوحدة من GET CODE في اللوحة).
+//   - Banner 728x90  30952242 key f0b3da1780a72337b65f30991ca2adad (تُستعمل على >=900px)
+//     [Viktor 2026-08-31: أُخذ المفتاح من GET CODE؛ ودومين الـinvoke صار highrevenueformat.com]
 // أماكن الوحدات: الرئيسية (native بعد "الأكثر شعبية")، صفحة المانجا (banner تحت
 // الفصول)، نهاية الفصل (banner بعد آخر صفحة)، وخلاصة التصفح (native بعد أول صفحة).
 // Policy: banners only — NO popunders/push/redirects. Never inside the reader.
@@ -20,7 +20,7 @@
   const BANNERS = {
     // 728x90 (وحدة 30952242، أُنشئت 2026-08-27) للشاشات العريضة فقط. اتركها
     // فارغة = يستعمل الموقع 300x250 كما قبل، بدون أي خطأ.
-    wide: { key: '', w: 728, h: 90 },
+    wide: { key: 'f0b3da1780a72337b65f30991ca2adad', w: 728, h: 90 },
     desktop: { key: 'ec1e95038134fd0c0769cd035e966576', w: 300, h: 250 },
     mobile: { key: 'dcf2e11fac3a9544acd19ab8f8914202', w: 320, h: 50 },
   };
@@ -58,7 +58,7 @@
     doc.write('<!DOCTYPE html><html><head><base target="_top"></head><body style="margin:0">' +
       '<scr' + 'ipt>atOptions={"key":"' + cfg.key + '","format":"iframe","height":' + cfg.h +
       ',"width":' + cfg.w + ',"params":{}};</scr' + 'ipt>' +
-      '<scr' + 'ipt src="https://www.highperformanceformat.com/' + cfg.key + '/invoke.js"></scr' + 'ipt>' +
+      '<scr' + 'ipt src="https://www.highrevenueformat.com/' + cfg.key + '/invoke.js"></scr' + 'ipt>' +
       '</body></html>');
     doc.close();
   }
