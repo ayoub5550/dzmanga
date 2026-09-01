@@ -751,3 +751,20 @@ Google Digital Asset Links API (`digitalassetlinks.googleapis.com/v1/statements:
   developer.amazon.com/settings/console/idv — لا يستطيع أي وكيل فعلها نيابة عنه.
   تذكير: Amazon يعيد توقيع الـAPK — عند النشر هناك أضف بصمة شهادة Amazon إلى
   `src/assetlinks.json`.
+
+## 2026-09-01 — مشكلة اسم الموقع في Google ("DigitalPlat Domain")
+
+نتائج بحث Google تعرض اسم الموقع "DigitalPlat Domain" بدل "dzmanga" (العنوان والوصف
+والأيقونة صحيحون — فقط "اسم الموقع" قديم).
+
+- **التشخيص (مؤكد عبر URL Inspection API):** آخر زحف للصفحة الرئيسية كان 2026-08-29،
+  أي **قبل** نشر الميتاداتا الجديدة (og:site_name=dzmanga + JSON-LD WebSite name)
+  صباح 2026-09-01. الصفحة "Submitted and indexed" وكل شيء سليم — المشكلة كاش Google فقط.
+- **ما فُعل:** أُعيد إرسال sitemap.xml عبر Search Console API (نجح، 204). محاولة
+  Indexing API فشلت بـ403 (مقصور على مواقع الوظائف/البث — لا تعد المحاولة).
+  زر "Request Indexing" موجود فقط في واجهة Search Console ولا يوجد له API —
+  يجب أن يضغطه أيوب بنفسه لتسريع إعادة الزحف.
+- **التوقع:** بعد إعادة الزحف، يتحدث اسم الموقع خلال أيام إلى أسبوعين. متابعة مجدولة
+  يوم 2026-09-06.
+- **ملاحظة دائمة:** ما دام الدومين مجانياً تحت `dpdns.org`، قد يفضّل Google اسم
+  الدومين الأم. الحل الجذري لهذه الفئة من المشاكل: دومين حقيقي (.com).
