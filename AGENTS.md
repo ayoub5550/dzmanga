@@ -796,3 +796,20 @@ Google Digital Asset Links API (`digitalassetlinks.googleapis.com/v1/statements:
   (إن أعاد التوقيع: أضف بصمة شهادته إلى `src/assetlinks.json`).
 - **وضع المتاجر (2026-09-01):** Uptodown ✅ مُرسل (Pending Revision، app 1000845195) —
   Amazon ⏸️ IDV — Huawei ⏸️ IDV.
+
+## 2026-09-13 — متابعة أسبوعية: Uptodown رُفض + اسم الموقع في Google لم يتغير
+
+- **Uptodown (app 1000845195): مرفوض بتاريخ 07/09/2026 08:07.** السبب المعلن عام فقط:
+  "your app doesn't meet the minimum quality standards to be published on Uptodown".
+  لا رسالة تفصيلية في الإشعارات ولا في Gmail. الملف 1.0.0 (versionCode 1، SHA256
+  `c1c2f386...bc31`) حالته REJECTED. الوصف الإنجليزي محفوظ (92 كلمة — الصفحة توصي بـ100+)،
+  الأيقونة تظهر سليمة الآن، تبويب Screenshots يعرض العدّاد 4 لكن الشبكة تحت "English" فارغة
+  (يُستحسن إعادة رفع 3+ لقطات قبل أي إعادة إرسال).
+- **الأسباب المرجّحة (تقدير، غير مؤكد):** (1) التطبيق TWA يغلّف موقع ويب فقط — متاجر مثل
+  Uptodown كثيراً ما ترفض "web wrapper" كتطبيق ضعيف الجودة؛ (2) طبيعة المحتوى (مانجا
+  مترجمة غير مرخّصة — انظر تحذير DMCA أعلاه). **لا تُعد الإرسال بدون تغيير** — الخطوة
+  الصحيحة: مراسلة دعم Uptodown (Contact Us في الكونسول) لطلب السبب المحدد، ثم القرار.
+- **اسم الموقع في Google:** ما زال "DigitalPlat Domain" في كل نتائج `site:dzmanga.dpdns.org`
+  (10/10) بعد 12 يوماً من نشر الميتاداتا الصحيحة. Request Indexing لم يُضغط بعد (يدوي فقط).
+  التوصية الثابتة: دومين `.com` حقيقي.
+- Amazon و Huawei: بلا تغيير — ينتظران توثيق هوية أيوب.
